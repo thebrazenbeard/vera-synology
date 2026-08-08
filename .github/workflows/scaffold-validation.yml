@@ -37,7 +37,5 @@ jobs:
           python3 -m unittest discover -s tests -v
           python3 -m compileall -q payload tools tests
           for f in spk/scripts/*; do sh -n "$f"; done
-          python3 tools/make_source_manifest.py
-          git diff --exit-code -- SOURCE_MANIFEST.json
           python3 tools/build_spk.py
-          python3 tools/verify_spk.py dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk
+          python3 tools/verify_spk.py dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk --manifest SOURCE_MANIFEST.json
