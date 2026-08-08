@@ -45,6 +45,23 @@ class ControlSocketFramingTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(b'{"op":"status"}', data)
 
+    def test_disconnected_client_does_not_raise_when_response_is_sent(self):
+        server_end, client_end = socket.socketpair()
+        client_end.close()
+        try:
+            sent = scaffold_mod._send_json_response(server_end, {"schema": "TEST"})
+        finally:
+            server_end.close()
+        self.assertFalse(sent)
+
+    def test_reset_during_request_read_is_classified_not_raised(self):
+        class ResettingConn:
+            def recv(self, _size):
+                raise ConnectionResetError("peer reset")
+        data, error = scaffold_mod._read_request_bytes(ResettingConn())
+        self.assertIsNone(data)
+        self.assertEqual("CLIENT_DISCONNECTED", error)
+
     def test_multiple_requests_in_one_frame_are_rejected(self):
         reader, writer = socket.socketpair()
         reader.settimeout(1)

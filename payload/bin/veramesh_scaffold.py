@@ -51,6 +51,8 @@ def _read_request_bytes(conn: socket.socket) -> tuple[bytes | None, str | None]:
             chunk = conn.recv(min(1024, MAX_REQUEST + 1 - len(buf)))
         except TimeoutError:
             return None, "REQUEST_TIMEOUT"
+        except ConnectionResetError:
+            return None, "CLIENT_DISCONNECTED"
         if not chunk:
             return (bytes(buf), None) if buf else (None, "EMPTY_REQUEST")
         buf.extend(chunk)
@@ -61,6 +63,15 @@ def _read_request_bytes(conn: socket.socket) -> tuple[bytes | None, str | None]:
             if bytes(buf[newline + 1:]).strip():
                 return None, "MULTIPLE_OR_TRAILING_REQUEST_DATA"
             return bytes(buf[:newline]), None
+
+
+def _send_json_response(conn: socket.socket, response: dict) -> bool:
+    payload = (json.dumps(response, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    try:
+        conn.sendall(payload)
+    except (BrokenPipeError, ConnectionResetError):
+        return False
+    return True
 
 
 def serve() -> int:
@@ -99,7 +110,7 @@ def serve() -> int:
                         response = {"error": "UNSUPPORTED_OPERATION"}
                     else:
                         response = status_payload()
-                conn.sendall((json.dumps(response, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"))
+                _send_json_response(conn, response)
     finally:
         server.close()
         try:
