@@ -221,7 +221,10 @@ class BuildAndVerifyTests(unittest.TestCase):
                     "ui/config": b"{}",
                     "ui/index.html": b"x",
                 }.items()):
-                    ti=tarfile.TarInfo(name); ti.size=len(data); tf.addfile(ti, io.BytesIO(data))
+                    ti=tarfile.TarInfo(name); ti.size=len(data)
+                    ti.mode=0o755 if name.startswith('bin/') else 0o644
+                    ti.mtime=0; ti.uid=0; ti.gid=0; ti.uname=''; ti.gname=''
+                    tf.addfile(ti, io.BytesIO(data))
         spk_raw = io.BytesIO()
         outer_files = {
             "INFO": b'package="VeraMesh"\nversion="0.0.1-0002"\nos_min_ver="7.2-72806"\narch="noarch"\ndsmuidir="ui"\ndsmappname="com.vera.MeshScaffold"\n',
@@ -238,7 +241,10 @@ class BuildAndVerifyTests(unittest.TestCase):
         }
         with tarfile.open(fileobj=spk_raw, mode="w", format=tarfile.USTAR_FORMAT) as tf:
             for name, data in sorted(outer_files.items()):
-                ti=tarfile.TarInfo(name); ti.size=len(data); tf.addfile(ti, io.BytesIO(data))
+                ti=tarfile.TarInfo(name); ti.size=len(data)
+                ti.mode=0o755 if name.startswith('scripts/') else 0o644
+                ti.mtime=0; ti.uid=0; ti.gid=0; ti.uname=''; ti.gname=''
+                tf.addfile(ti, io.BytesIO(data))
         with self.assertRaisesRegex(ValueError, "bytecode"):
             verify_spk.verify_bytes(spk_raw.getvalue())
 
