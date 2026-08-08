@@ -30,6 +30,7 @@
   "spk/scripts/start-stop-status",
   "tests/test_control_socket_framing.py",
   "tests/test_info_contract.py",
+  "tests/test_metadata_profile_snapshot.py",
   "tests/test_scaffold.py",
   "tests/test_source_archive_hardening.py",
   "tests/test_state_recovery.py",
