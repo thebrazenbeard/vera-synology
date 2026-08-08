@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gzip
 import io
+import os
 import tarfile
 from pathlib import Path
 
@@ -50,6 +51,8 @@ def build_package_tgz() -> bytes:
         rel = path.relative_to(ROOT / "payload")
         if "__pycache__" in rel.parts or path.suffix == ".pyc":
             continue
+        if path.is_symlink():
+            raise ValueError(f"source symlink is forbidden: payload/{rel.as_posix()}")
         if path.is_file():
             files.append((rel.as_posix(), path.read_bytes(), _mode_for(path)))
     return _tar_bytes(files, gzipped=True)
@@ -58,8 +61,11 @@ def build_package_tgz() -> bytes:
 def build_spk_bytes() -> bytes:
     files: list[tuple[str, bytes, int]] = []
     for path in sorted((ROOT / "spk").rglob("*")):
+        rel = path.relative_to(ROOT / "spk")
+        if path.is_symlink():
+            raise ValueError(f"source symlink is forbidden: spk/{rel.as_posix()}")
         if path.is_file():
-            files.append((path.relative_to(ROOT / "spk").as_posix(), path.read_bytes(), _mode_for(path)))
+            files.append((rel.as_posix(), path.read_bytes(), _mode_for(path)))
     files.append(("package.tgz", build_package_tgz(), 0o644))
     return _tar_bytes(files, gzipped=False)
 

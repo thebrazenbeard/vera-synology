@@ -13,16 +13,19 @@ EXCLUDED_NAMES = {"SOURCE_MANIFEST.json"}
 def collect() -> list[dict]:
     entries: list[dict] = []
     for path in sorted(ROOT.rglob("*")):
-        if not path.is_file():
-            continue
         rel = path.relative_to(ROOT)
         if rel.parts and rel.parts[0] in EXCLUDED_TOP:
             continue
         if path.name in EXCLUDED_NAMES or "__pycache__" in rel.parts or path.suffix == ".pyc":
             continue
+        if path.is_symlink():
+            raise ValueError(f"source symlink is forbidden: {rel.as_posix()}")
+        if not path.is_file():
+            continue
         data = path.read_bytes()
         entries.append({
             "path": rel.as_posix(),
+            "type": "regular",
             "bytes": len(data),
             "sha256": hashlib.sha256(data).hexdigest(),
         })

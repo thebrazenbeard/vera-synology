@@ -32,7 +32,15 @@ REQUIRED_PAYLOAD = {
 }
 
 
-def _members(tf: tarfile.TarFile) -> list[tarfile.TarInfo]:
+def _expected_mode(name: str, archive_kind: str) -> int:
+    if archive_kind == "outer":
+        return 0o755 if name.startswith("scripts/") else 0o644
+    if archive_kind == "payload":
+        return 0o755 if name.startswith("bin/") else 0o644
+    raise ValueError(f"unknown archive kind: {archive_kind}")
+
+
+def _members(tf: tarfile.TarFile, archive_kind: str) -> list[tarfile.TarInfo]:
     members = tf.getmembers()
     names = [m.name for m in members]
     if len(names) != len(set(names)):
@@ -45,12 +53,17 @@ def _members(tf: tarfile.TarFile) -> list[tarfile.TarInfo]:
             raise ValueError("unsafe archive member path")
         if not m.isfile():
             raise ValueError("only regular files are permitted in scaffold archives")
+        expected_mode = _expected_mode(m.name, archive_kind)
+        if m.mode != expected_mode:
+            raise ValueError(f"archive member mode mismatch: {m.name} expected {expected_mode:04o} got {m.mode:04o}")
+        if m.uid != 0 or m.gid != 0 or m.mtime != 0 or m.uname != "" or m.gname != "":
+            raise ValueError(f"archive member metadata mismatch: {m.name}")
     return members
 
 
 def verify_bytes(spk: bytes) -> dict:
     with tarfile.open(fileobj=io.BytesIO(spk), mode="r:") as outer:
-        outer_members = _members(outer)
+        outer_members = _members(outer, "outer")
         outer_names = {m.name for m in outer_members}
         missing = REQUIRED_OUTER - outer_names
         if missing:
@@ -67,7 +80,7 @@ def verify_bytes(spk: bytes) -> dict:
             raise ValueError("unexpected resource surface")
         package_tgz = outer.extractfile("package.tgz").read()
     with tarfile.open(fileobj=io.BytesIO(package_tgz), mode="r:gz") as inner:
-        inner_members = _members(inner)
+        inner_members = _members(inner, "payload")
         inner_names = {m.name for m in inner_members}
         if any("__pycache__" in Path(name).parts or name.endswith(".pyc") for name in inner_names):
             raise ValueError("python bytecode/cache members are forbidden in package payload")
