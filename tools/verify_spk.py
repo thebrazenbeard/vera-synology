@@ -248,7 +248,24 @@ def verify_bytes(spk: bytes, source_manifest: list[dict] | None = None) -> dict:
         missing = REQUIRED_OUTER - outer_names
         if missing:
             raise ValueError(f"missing outer members: {sorted(missing)}")
+        package_tgz = outer.extractfile("package.tgz").read()
+
+        with tarfile.open(fileobj=io.BytesIO(package_tgz), mode="r:gz") as inner:
+            im = _members(inner, "payload")
+            inner_names = {m.name for m in im}
+            if any("__pycache__" in Path(n).parts or n.endswith(".pyc") for n in inner_names):
+                raise ValueError("python bytecode/cache members are forbidden in package payload")
+            missing = REQUIRED_PAYLOAD - inner_names
+            if missing:
+                raise ValueError(f"missing payload members: {sorted(missing)}")
+            if manifest is not None:
+                for member in im:
+                    source_path = "payload/" + member.name
+                    data = inner.extractfile(member).read()
+                    _verify_member_against_manifest(source_path, data, member.mode, manifest)
+
         _validate_metadata_profile(outer)
+
         if manifest is not None:
             for member in om:
                 if member.name == "package.tgz":
@@ -256,24 +273,11 @@ def verify_bytes(spk: bytes, source_manifest: list[dict] | None = None) -> dict:
                 source_path = "spk/" + member.name
                 data = outer.extractfile(member).read()
                 _verify_member_against_manifest(source_path, data, member.mode, manifest)
-        package_tgz = outer.extractfile("package.tgz").read()
-    with tarfile.open(fileobj=io.BytesIO(package_tgz), mode="r:gz") as inner:
-        im = _members(inner, "payload")
-        inner_names = {m.name for m in im}
-        if any("__pycache__" in Path(n).parts or n.endswith(".pyc") for n in inner_names):
-            raise ValueError("python bytecode/cache members are forbidden in package payload")
-        missing = REQUIRED_PAYLOAD - inner_names
-        if missing:
-            raise ValueError(f"missing payload members: {sorted(missing)}")
-        if manifest is not None:
-            for member in im:
-                source_path = "payload/" + member.name
-                data = inner.extractfile(member).read()
-                _verify_member_against_manifest(source_path, data, member.mode, manifest)
             expected_packaged = {path for path in manifest if path.startswith(("spk/", "payload/"))}
             actual_packaged = {"spk/" + n for n in outer_names if n != "package.tgz"} | {"payload/" + n for n in inner_names}
             if actual_packaged != expected_packaged:
                 raise ValueError("artifact/source manifest path-set mismatch")
+
     return {
         "outer_members": len(om),
         "payload_members": len(im),
