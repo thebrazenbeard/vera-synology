@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 
 import build_spk
@@ -10,28 +8,16 @@ import build_spk
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def collect() -> list[dict]:
-    entries: list[dict] = []
-    for rel in build_spk.validated_source_paths():
-        if not (rel.startswith("payload/") or rel.startswith("spk/")):
-            continue
-        path = ROOT / rel
-        data = path.read_bytes()
-        entries.append(
-            {
-                "path": rel,
-                "type": "regular",
-                "source_mode": f"{build_spk._mode_for_rel(rel):04o}",
-                "bytes": len(data),
-                "sha256": hashlib.sha256(data).hexdigest(),
-            }
-        )
-    return entries
+def collect(snapshot: dict[str, build_spk.SourceEntry] | None = None) -> list[dict]:
+    if snapshot is None:
+        snapshot = build_spk.validated_source_snapshot()
+    return build_spk.source_manifest_entries(snapshot)
 
 
 def main() -> int:
+    snapshot = build_spk.validated_source_snapshot()
     out = ROOT / "SOURCE_MANIFEST.json"
-    out.write_text(json.dumps(collect(), sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    out.write_bytes(build_spk.source_manifest_bytes(snapshot))
     print(out)
     return 0
 
