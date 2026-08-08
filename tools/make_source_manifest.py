@@ -5,30 +5,27 @@ import hashlib
 import json
 from pathlib import Path
 
+import build_spk
+
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_TOP = {"dist", ".git"}
-EXCLUDED_NAMES = {"SOURCE_MANIFEST.json"}
 
 
 def collect() -> list[dict]:
     entries: list[dict] = []
-    for path in sorted(ROOT.rglob("*")):
-        rel = path.relative_to(ROOT)
-        if rel.parts and rel.parts[0] in EXCLUDED_TOP:
+    for rel in build_spk.validated_source_paths():
+        if not (rel.startswith("payload/") or rel.startswith("spk/")):
             continue
-        if path.name in EXCLUDED_NAMES or "__pycache__" in rel.parts or path.suffix == ".pyc":
-            continue
-        if path.is_symlink():
-            raise ValueError(f"source symlink is forbidden: {rel.as_posix()}")
-        if not path.is_file():
-            continue
+        path = ROOT / rel
         data = path.read_bytes()
-        entries.append({
-            "path": rel.as_posix(),
-            "type": "regular",
-            "bytes": len(data),
-            "sha256": hashlib.sha256(data).hexdigest(),
-        })
+        entries.append(
+            {
+                "path": rel,
+                "type": "regular",
+                "source_mode": f"{build_spk._mode_for_rel(rel):04o}",
+                "bytes": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            }
+        )
     return entries
 
 

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import importlib.util
 import io
 import json
+import os
 import subprocess
-import tempfile
+import sys
 import tarfile
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,10 +25,36 @@ def load_module(name: str, path: Path):
 
 
 build_spk = load_module("build_spk_hardening", ROOT / "tools" / "build_spk.py")
+sys.modules["build_spk"] = build_spk
 verify_spk = load_module("verify_spk_hardening", ROOT / "tools" / "verify_spk.py")
 
 
-class SourceSymlinkTests(unittest.TestCase):
+class SourceCustodyTests(unittest.TestCase):
+    def test_source_paths_contract_is_sorted_unique_and_self_bound(self):
+        paths = json.loads((ROOT / "SOURCE_PATHS.json").read_text())
+        self.assertEqual(paths, sorted(paths))
+        self.assertEqual(len(paths), len(set(paths)))
+        self.assertIn("SOURCE_PATHS.json", paths)
+
+    def test_untracked_regular_payload_file_is_rejected_before_build(self):
+        path = ROOT / "payload" / "bin" / "UNTRACKED_SECRET.txt"
+        path.write_bytes(b"harmless-untracked-sentinel")
+        try:
+            with self.assertRaisesRegex(ValueError, "unexpected"):
+                build_spk.build_package_tgz()
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_modified_tracked_source_is_rejected_before_build(self):
+        path = ROOT / "README.md"
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original + b"\nDIRTY_WORKTREE_SENTINEL\n")
+            with self.assertRaisesRegex(ValueError, "differ from exact Git HEAD"):
+                build_spk.build_spk_bytes()
+        finally:
+            path.write_bytes(original)
+
     def test_payload_file_symlink_to_outside_root_is_rejected(self):
         with tempfile.TemporaryDirectory(dir=ROOT.parent) as td:
             outside = Path(td) / "outside.txt"
@@ -60,27 +89,33 @@ class SourceSymlinkTests(unittest.TestCase):
             finally:
                 link_dir.unlink(missing_ok=True)
 
-    def test_source_manifest_rejects_symlink_and_binds_regular_type(self):
-        with tempfile.TemporaryDirectory(dir=ROOT.parent) as td:
-            outside = Path(td) / "outside.txt"
-            outside.write_bytes(b"OUTSIDE_ROOT_SENTINEL")
-            link = ROOT / "payload" / "manifest-linked.txt"
-            link.symlink_to(outside)
-            try:
-                proc = subprocess.run(
-                    ["python", str(ROOT / "tools" / "make_source_manifest.py")],
-                    cwd=ROOT,
-                    text=True,
-                    capture_output=True,
-                )
-                self.assertNotEqual(0, proc.returncode, proc.stdout + proc.stderr)
-                self.assertIn("symlink", (proc.stdout + proc.stderr).lower())
-            finally:
-                link.unlink(missing_ok=True)
+    def test_source_manifest_rejects_untracked_regular_root_file(self):
+        path = ROOT / "UNTRACKED_ROOT.txt"
+        path.write_bytes(b"harmless-untracked-root-sentinel")
+        try:
+            proc = subprocess.run(
+                ["python", str(ROOT / "tools" / "make_source_manifest.py")],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(0, proc.returncode, proc.stdout + proc.stderr)
+            self.assertIn("unexpected", (proc.stdout + proc.stderr).lower())
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_source_manifest_is_build_input_content_evidence_not_git_custody(self):
         subprocess.run(["python", str(ROOT / "tools" / "make_source_manifest.py")], cwd=ROOT, check=True)
         entries = json.loads((ROOT / "SOURCE_MANIFEST.json").read_text())
         self.assertTrue(entries)
-        self.assertTrue(all(entry["type"] == "regular" for entry in entries))
+        for entry in entries:
+            self.assertTrue(entry["path"].startswith(("payload/", "spk/")))
+            self.assertEqual("regular", entry["type"])
+            self.assertIn(entry["source_mode"], {"0644", "0755"})
+            self.assertNotIn("git_blob_sha", entry)
+            data = (ROOT / entry["path"]).read_bytes()
+            self.assertEqual(len(data), entry["bytes"])
+            self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
 
 class ArchiveMetadataTests(unittest.TestCase):

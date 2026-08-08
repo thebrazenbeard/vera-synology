@@ -124,7 +124,6 @@ class StateTests(unittest.TestCase):
                 state_mod.initialize(path)
             self.assertEqual(before, path.read_bytes())
 
-
     def test_initialize_rejects_symlink_state_parent(self):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
@@ -149,10 +148,7 @@ class StateTests(unittest.TestCase):
                 state_mod.verify(path)
 
 
-
-
 class ControlSocketTests(unittest.TestCase):
-
     def test_control_socket_rejects_symlink_run_directory(self):
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
@@ -176,7 +172,6 @@ class BuildAndVerifyTests(unittest.TestCase):
         b = build_spk.build_spk_bytes()
         self.assertEqual(hashlib.sha256(a).digest(), hashlib.sha256(b).digest())
         self.assertEqual(a, b)
-
 
     def test_build_excludes_python_bytecode_and_pycache(self):
         junk_dir = ROOT / "payload" / "bin" / "__pycache__"
@@ -214,7 +209,6 @@ class BuildAndVerifyTests(unittest.TestCase):
                 ti = tarfile.TarInfo('INFO'); data=b'x'; ti.size=1; tf.addfile(ti, io.BytesIO(data))
         with self.assertRaisesRegex(ValueError, 'duplicate'):
             verify_spk.verify_bytes(raw.getvalue())
-
 
     def test_verifier_rejects_bytecode_payload_members(self):
         package_raw = io.BytesIO()
@@ -267,7 +261,7 @@ class BuildAndVerifyTests(unittest.TestCase):
     def test_qualification_doc_keeps_device_effects_open(self):
         doc = (ROOT / 'docs/TOOLKIT_QUALIFICATION.md').read_text()
         self.assertIn('DEVICE_TOOLKIT_EXECUTION_NOT_RUN', doc)
-        self.assertIn('BLOCKED_MESH_NOT_IMPLEMED', doc)
+        self.assertIn('BLOCKED_MESH_NOT_IMPLEMENTED', doc)
         self.assertIn('separately authorized', doc)
 
 
