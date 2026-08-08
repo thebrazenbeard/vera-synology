@@ -15,6 +15,7 @@ STATE = Path("/var/packages/VeraMesh/var/vera/scaffold-state.json")
 RUN_DIR = Path("/var/packages/VeraMesh/tmp/run")
 SOCKET_PATH = RUN_DIR / "control.sock"
 MAX_REQUEST = 4096
+CONNECTION_TIMEOUT_SECONDS = 1.0
 
 
 def status_payload() -> dict:
@@ -43,6 +44,25 @@ def _prepare_socket_path() -> None:
         SOCKET_PATH.unlink()
 
 
+def _read_request_bytes(conn: socket.socket) -> tuple[bytes | None, str | None]:
+    buf = bytearray()
+    while True:
+        try:
+            chunk = conn.recv(min(1024, MAX_REQUEST + 1 - len(buf)))
+        except TimeoutError:
+            return None, "REQUEST_TIMEOUT"
+        if not chunk:
+            return (bytes(buf), None) if buf else (None, "EMPTY_REQUEST")
+        buf.extend(chunk)
+        if len(buf) > MAX_REQUEST:
+            return None, "REQUEST_TOO_LARGE"
+        newline = buf.find(b"\n")
+        if newline >= 0:
+            if bytes(buf[newline + 1:]).strip():
+                return None, "MULTIPLE_OR_TRAILING_REQUEST_DATA"
+            return bytes(buf[:newline]), None
+
+
 def serve() -> int:
     verify(STATE)
     _prepare_socket_path()
@@ -66,9 +86,10 @@ def serve() -> int:
             except TimeoutError:
                 continue
             with conn:
-                data = conn.recv(MAX_REQUEST + 1)
-                if len(data) > MAX_REQUEST:
-                    response = {"error": "REQUEST_TOO_LARGE"}
+                conn.settimeout(CONNECTION_TIMEOUT_SECONDS)
+                data, framing_error = _read_request_bytes(conn)
+                if framing_error is not None:
+                    response = {"error": framing_error}
                 else:
                     try:
                         request = json.loads(data.decode("utf-8"))
