@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+UNIT="pkguser-veramesh.service"
+CTL="/usr/syno/bin/synosystemctl"
+PY="/var/packages/python311/target/bin/python3.11"
+STATE="/var/packages/VeraMesh/var/vera/scaffold-state.json"
+
+case "${1:-}" in
+  prestart)
+    "$PY" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" verify "$STATE"
+    ;;
+  prestop)
+    ;;
+  start)
+    "$CTL" start "$UNIT"
+    ;;
+  stop)
+    "$CTL" stop "$UNIT"
+    ;;
+  status)
+    if "$CTL" status "$UNIT" >/dev/null 2>&1; then
+      exit 0
+    fi
+    exit 3
+    ;;
+  *)
+    exit 4
+    ;;
+esac
+exit 0

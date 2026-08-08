@@ -1,0 +1,11 @@
+{
+  ".url": {
+    "com.vera.MeshScaffold": {
+      "type": "url",
+      "icon": "images/app_{0}.png",
+      "title": "Vera Mesh",
+      "desc": "First-install scaffold status",
+      "url": "3rdparty/VeraMesh/index.html"
+    }
+  }
+}

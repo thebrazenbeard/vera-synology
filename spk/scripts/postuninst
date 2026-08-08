@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+# Durable state is intentionally not deleted by this scaffold. Destructive
+# uninstall semantics remain a separately qualified operator/device gate.
+exit 0
