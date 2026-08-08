@@ -18,6 +18,17 @@ EXCLUDED_TRACKED = {"SOURCE_MANIFEST.json"}
 EXCLUDED_TOP = {".git", "dist"}
 
 
+class SourceEntry:
+    __slots__ = ("path", "data", "archive_mode", "git_mode", "git_blob_sha")
+
+    def __init__(self, path: str, data: bytes, archive_mode: int, git_mode: str, git_blob_sha: str) -> None:
+        self.path = path
+        self.data = data
+        self.archive_mode = archive_mode
+        self.git_mode = git_mode
+        self.git_blob_sha = git_blob_sha
+
+
 def _mode_for_rel(rel: str) -> int:
     if rel.startswith("spk/scripts/") or rel.startswith("payload/bin/") or rel.startswith("tools/"):
         return 0o755
@@ -28,30 +39,17 @@ def _git_mode_for_rel(rel: str) -> str:
     return "100755" if _mode_for_rel(rel) == 0o755 else "100644"
 
 
-def _expected_source_paths() -> list[str]:
-    value = json.loads(SOURCE_PATHS.read_text(encoding="utf-8"))
-    if not isinstance(value, list) or not value or any(not isinstance(x, str) or not x for x in value):
-        raise ValueError("SOURCE_PATHS must be a nonempty string array")
-    if value != sorted(value) or len(value) != len(set(value)):
-        raise ValueError("SOURCE_PATHS must be unique and lexicographically sorted")
-    if "SOURCE_PATHS.json" not in value:
-        raise ValueError("SOURCE_PATHS must bind itself")
-    for rel in value:
-        p = Path(rel)
-        if p.is_absolute() or ".." in p.parts or rel in EXCLUDED_TRACKED:
-            raise ValueError(f"unsafe source path: {rel}")
-    return value
+def _git(args: list[str]) -> bytes:
+    try:
+        proc = subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ValueError("exact Git HEAD source custody unavailable") from exc
+    return proc.stdout
 
 
 def _git_head_entries() -> dict[str, tuple[str, str, str]]:
-    try:
-        proc = subprocess.run(
-            ["git", "ls-tree", "-r", "-z", "HEAD"], cwd=ROOT, check=True, capture_output=True
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise ValueError("exact Git HEAD source custody unavailable") from exc
     result: dict[str, tuple[str, str, str]] = {}
-    for record in proc.stdout.split(b"\0"):
+    for record in _git(["ls-tree", "-r", "-z", "HEAD"]).split(b"\0"):
         if not record:
             continue
         meta, raw_path = record.split(b"\t", 1)
@@ -67,10 +65,59 @@ def _git_blob_sha(data: bytes) -> str:
     return hashlib.sha1(f"blob {len(data)}\0".encode("ascii") + data).hexdigest()
 
 
-def validated_source_paths() -> list[str]:
-    expected = _expected_source_paths()
-    expected_set = set(expected)
+def _git_blob_bytes(sha: str) -> bytes:
+    data = _git(["cat-file", "blob", sha])
+    if _git_blob_sha(data) != sha:
+        raise ValueError(f"Git object identity mismatch: {sha}")
+    return data
+
+
+def _parse_source_paths(data: bytes) -> list[str]:
+    try:
+        value = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("SOURCE_PATHS must be strict UTF-8 JSON") from exc
+    if not isinstance(value, list) or not value or any(not isinstance(x, str) or not x for x in value):
+        raise ValueError("SOURCE_PATHS must be a nonempty string array")
+    if value != sorted(value) or len(value) != len(set(value)):
+        raise ValueError("SOURCE_PATHS must be unique and lexicographically sorted")
+    if "SOURCE_PATHS.json" not in value:
+        raise ValueError("SOURCE_PATHS must bind itself")
+    for rel in value:
+        p = Path(rel)
+        if p.is_absolute() or ".." in p.parts or rel in EXCLUDED_TRACKED:
+            raise ValueError(f"unsafe source path: {rel}")
+    return value
+
+
+def _read_worktree_regular(rel: str) -> bytes:
+    path = ROOT / rel
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise ValueError(f"source path cannot be opened without following links: {rel}") from exc
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f"source entry is not a regular file: {rel}")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def validated_source_snapshot() -> dict[str, SourceEntry]:
     head = _git_head_entries()
+    source_paths_entry = head.get("SOURCE_PATHS.json")
+    if source_paths_entry is None or source_paths_entry[:2] != ("100644", "blob"):
+        raise ValueError("SOURCE_PATHS.json missing or wrong Git type/mode")
+    expected = _parse_source_paths(_git_blob_bytes(source_paths_entry[2]))
+    expected_set = set(expected)
     allowed_tracked = expected_set | EXCLUDED_TRACKED
     if set(head) != allowed_tracked:
         missing = sorted(allowed_tracked - set(head))
@@ -98,18 +145,49 @@ def validated_source_paths() -> list[str]:
         extra = sorted(observed - expected_set)
         raise ValueError(f"worktree source path-set mismatch missing={missing} unexpected={extra}")
 
+    snapshot: dict[str, SourceEntry] = {}
     for rel in expected:
         mode, obj_type, head_sha = head[rel]
-        if obj_type != "blob" or mode != _git_mode_for_rel(rel):
+        expected_mode = _git_mode_for_rel(rel)
+        if obj_type != "blob" or mode != expected_mode:
             raise ValueError(f"Git source type/mode mismatch: {rel}")
-        path = ROOT / rel
-        st = path.lstat()
-        if not stat.S_ISREG(st.st_mode) or path.is_symlink():
-            raise ValueError(f"source path is not a direct regular file: {rel}")
-        data = path.read_bytes()
-        if _git_blob_sha(data) != head_sha:
+        worktree_data = _read_worktree_regular(rel)
+        if _git_blob_sha(worktree_data) != head_sha:
             raise ValueError(f"worktree bytes differ from exact Git HEAD: {rel}")
-    return expected
+        git_data = _git_blob_bytes(head_sha)
+        snapshot[rel] = SourceEntry(
+            path=rel,
+            data=git_data,
+            archive_mode=_mode_for_rel(rel),
+            git_mode=mode,
+            git_blob_sha=head_sha,
+        )
+    return snapshot
+
+
+def validated_source_paths() -> list[str]:
+    return list(validated_source_snapshot())
+
+
+def source_manifest_entries(snapshot: dict[str, SourceEntry]) -> list[dict]:
+    entries: list[dict] = []
+    for rel, entry in snapshot.items():
+        if not rel.startswith(("payload/", "spk/")):
+            continue
+        entries.append(
+            {
+                "path": rel,
+                "type": "regular",
+                "source_mode": f"{entry.archive_mode:04o}",
+                "bytes": len(entry.data),
+                "sha256": hashlib.sha256(entry.data).hexdigest(),
+            }
+        )
+    return entries
+
+
+def source_manifest_bytes(snapshot: dict[str, SourceEntry]) -> bytes:
+    return (json.dumps(source_manifest_entries(snapshot), sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
 def _tar_bytes(files: list[tuple[str, bytes, int]], gzipped: bool) -> bytes:
@@ -139,35 +217,43 @@ def _tar_bytes(files: list[tuple[str, bytes, int]], gzipped: bool) -> bytes:
     return raw.getvalue()
 
 
-def build_package_tgz() -> bytes:
-    paths = validated_source_paths()
+def build_package_tgz(snapshot: dict[str, SourceEntry] | None = None) -> bytes:
+    if snapshot is None:
+        snapshot = validated_source_snapshot()
     files: list[tuple[str, bytes, int]] = []
-    for rel in paths:
-        if not rel.startswith("payload/"):
-            continue
-        path = ROOT / rel
-        member = rel.removeprefix("payload/")
-        files.append((member, path.read_bytes(), _mode_for_rel(rel)))
+    for rel, entry in snapshot.items():
+        if rel.startswith("payload/"):
+            files.append((rel.removeprefix("payload/"), entry.data, entry.archive_mode))
     return _tar_bytes(files, gzipped=True)
 
 
-def build_spk_bytes() -> bytes:
-    paths = validated_source_paths()
+def build_spk_bytes(snapshot: dict[str, SourceEntry] | None = None) -> bytes:
+    if snapshot is None:
+        snapshot = validated_source_snapshot()
     files: list[tuple[str, bytes, int]] = []
-    for rel in paths:
-        if not rel.startswith("spk/"):
-            continue
-        path = ROOT / rel
-        member = rel.removeprefix("spk/")
-        files.append((member, path.read_bytes(), _mode_for_rel(rel)))
-    files.append(("package.tgz", build_package_tgz(), 0o644))
+    for rel, entry in snapshot.items():
+        if rel.startswith("spk/"):
+            files.append((rel.removeprefix("spk/"), entry.data, entry.archive_mode))
+    files.append(("package.tgz", build_package_tgz(snapshot), 0o644))
     return _tar_bytes(files, gzipped=False)
 
 
+def _committed_manifest_bytes() -> bytes:
+    head = _git_head_entries()
+    entry = head.get("SOURCE_MANIFEST.json")
+    if entry is None or entry[:2] != ("100644", "blob"):
+        raise ValueError("committed SOURCE_MANIFEST.json missing or wrong Git type/mode")
+    return _git_blob_bytes(entry[2])
+
+
 def main() -> int:
+    snapshot = validated_source_snapshot()
+    expected_manifest = source_manifest_bytes(snapshot)
+    if _committed_manifest_bytes() != expected_manifest:
+        raise ValueError("committed SOURCE_MANIFEST.json does not match exact Git source snapshot")
     out = ROOT / "dist" / "VeraMesh-0.0.1-0002-reconstructed-scaffold.spk"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(build_spk_bytes())
+    out.write_bytes(build_spk_bytes(snapshot))
     print(out)
     return 0
 
