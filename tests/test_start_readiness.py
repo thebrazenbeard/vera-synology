@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import socket
 import sys
+import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -93,6 +98,17 @@ class ManualClock:
         self.advance(amount)
 
 
+class RealSocketApi:
+    MAX_RESPONSE = 4096
+
+    def __init__(self, socket_path: Path):
+        self.SOCKET_PATH = socket_path
+
+    @staticmethod
+    def _parse_status_response(value: bytes):
+        return json.loads(value.decode("utf-8"))
+
+
 class StartReadinessContractTests(unittest.TestCase):
     def setUp(self):
         self.mod = load_module()
@@ -133,6 +149,31 @@ class StartReadinessContractTests(unittest.TestCase):
             sleeper=self.clock.sleep,
             transition_factory=lambda: "c" * 32,
         )
+
+    def _serve_status(self, path, chunks, delays, *, hold_open=0.0):
+        ready = threading.Event()
+        def worker():
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            server.bind(str(path))
+            server.listen(1)
+            ready.set()
+            conn, _ = server.accept()
+            conn.recv(1024)
+            try:
+                for delay, chunk in zip(delays, chunks):
+                    time.sleep(delay)
+                    conn.sendall(chunk)
+                if hold_open:
+                    time.sleep(hold_open)
+            except BrokenPipeError:
+                pass
+            finally:
+                conn.close()
+                server.close()
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        self.assertTrue(ready.wait(1.0))
+        return thread
 
     def test_absent_then_exact_live_succeeds_with_one_manager_start(self):
         calls = 0
@@ -276,6 +317,56 @@ class StartReadinessContractTests(unittest.TestCase):
             profile["transient_errno_allowlist"],
         )
         self.assertRegex(self.mod.ALGORITHM_PROFILE_SHA256, r"^[0-9a-f]{64}$")
+
+    def test_real_probe_rejects_delayed_trailing_bytes_after_valid_line(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "control.sock"
+            self._serve_status(path, [b'{"result":"LIVE"}\n', b"X"], [0.01, 0.06])
+            obs = self.mod.probe_control_socket_bounded(0.25, self.policy(), api=RealSocketApi(path))
+            self.assertEqual(self.mod.ReadinessKind.INTEGRITY_ERROR, obs.kind)
+            self.assertEqual("trailing_response_bytes", obs.cause)
+
+    def test_real_probe_rejects_any_byte_after_terminating_lf(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "control.sock"
+            self._serve_status(path, [b'{"result":"LIVE"}\n '], [0.01])
+            obs = self.mod.probe_control_socket_bounded(0.25, self.policy(), api=RealSocketApi(path))
+            self.assertEqual(self.mod.ReadinessKind.INTEGRITY_ERROR, obs.kind)
+            self.assertEqual("trailing_response_bytes", obs.cause)
+
+    def test_real_probe_requires_eof_after_exact_line_before_live(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "control.sock"
+            self._serve_status(path, [b'{"result":"LIVE"}\n'], [0.01])
+            obs = self.mod.probe_control_socket_bounded(0.25, self.policy(), api=RealSocketApi(path))
+            self.assertEqual(self.mod.ReadinessKind.LIVE, obs.kind)
+            self.assertEqual("LIVE", obs.payload["result"])
+
+    def test_real_probe_valid_line_held_open_expires_before_live(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "control.sock"
+            self._serve_status(path, [b'{"result":"LIVE"}\n'], [0.01], hold_open=0.35)
+            started = time.monotonic()
+            obs = self.mod.probe_control_socket_bounded(0.12, self.policy(), api=RealSocketApi(path))
+            elapsed = time.monotonic() - started
+            self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
+            self.assertEqual("probe_deadline_expired", obs.cause)
+            self.assertLess(elapsed, 0.30)
+
+    def test_real_probe_fragmented_response_uses_one_aggregate_deadline(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "control.sock"
+            self._serve_status(
+                path,
+                [b'{"res', b'ult"', b':"LI', b'VE"}', b"\n"],
+                [0.04, 0.04, 0.04, 0.04, 0.04],
+            )
+            started = time.monotonic()
+            obs = self.mod.probe_control_socket_bounded(0.12, self.policy(), api=RealSocketApi(path))
+            elapsed = time.monotonic() - started
+            self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
+            self.assertEqual("probe_deadline_expired", obs.cause)
+            self.assertLess(elapsed, 0.30)
 
 
 if __name__ == "__main__":

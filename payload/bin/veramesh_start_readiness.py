@@ -243,17 +243,30 @@ def start_transition_bounded(
         return 4
 
 
+def _set_remaining_socket_timeout(client, deadline_at: float, monotonic: Callable[[], float]) -> bool:
+    try:
+        remaining = float(deadline_at) - float(monotonic())
+    except Exception:
+        return False
+    if not math.isfinite(remaining) or remaining <= 0.0:
+        return False
+    client.settimeout(remaining)
+    return True
+
+
 def probe_control_socket_bounded(
     timeout_seconds: float,
     policy: ReadinessPolicy,
     *,
     api=None,
+    monotonic: Callable[[], float] = time.monotonic,
 ) -> ReadinessObservation:
     api = api or _load_lifecycle()
     try:
         timeout_seconds = float(timeout_seconds)
         if not math.isfinite(timeout_seconds) or timeout_seconds <= 0.0:
             return ReadinessObservation.integrity_error("invalid_probe_budget")
+        deadline_at = float(monotonic()) + timeout_seconds
     except Exception:
         return ReadinessObservation.integrity_error("invalid_probe_budget")
 
@@ -271,26 +284,39 @@ def probe_control_socket_bounded(
 
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        client.settimeout(timeout_seconds)
+        if not _set_remaining_socket_timeout(client, deadline_at, monotonic):
+            return ReadinessObservation.transport_error("probe_deadline_expired")
         client.connect(str(api.SOCKET_PATH))
+
+        if not _set_remaining_socket_timeout(client, deadline_at, monotonic):
+            return ReadinessObservation.transport_error("probe_deadline_expired")
         client.sendall(b'{"op":"status"}\n')
+
         buf = bytearray()
+        newline = -1
         while True:
+            if not _set_remaining_socket_timeout(client, deadline_at, monotonic):
+                return ReadinessObservation.transport_error("probe_deadline_expired")
             chunk = client.recv(1024)
             if not chunk:
-                return ReadinessObservation.integrity_error("eof_before_complete_response")
-            buf.extend(chunk)
-            if len(buf) > api.MAX_RESPONSE:
-                return ReadinessObservation.integrity_error("oversized_response")
-            newline = buf.find(b"\n")
-            if newline >= 0:
-                if bytes(buf[newline + 1:]).strip():
-                    return ReadinessObservation.integrity_error("trailing_response_bytes")
+                if newline < 0:
+                    return ReadinessObservation.integrity_error("eof_before_complete_response")
                 try:
                     parsed = api._parse_status_response(bytes(buf[:newline]))
                 except ValueError:
                     return ReadinessObservation.integrity_error("invalid_status_response")
                 return ReadinessObservation.live(parsed)
+
+            buf.extend(chunk)
+            if len(buf) > api.MAX_RESPONSE:
+                return ReadinessObservation.integrity_error("oversized_response")
+
+            if newline < 0:
+                newline = buf.find(b"\n")
+            if newline >= 0 and newline != len(buf) - 1:
+                return ReadinessObservation.integrity_error("trailing_response_bytes")
+    except (TimeoutError, socket.timeout):
+        return ReadinessObservation.transport_error("probe_deadline_expired")
     except OSError as exc:
         if exc.errno in policy.transient_errnos:
             return ReadinessObservation.not_ready_transient(f"socket_errno_{exc.errno}")
