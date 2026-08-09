@@ -10,10 +10,17 @@ body{font-family:system-ui,sans-serif;margin:2rem;max-width:52rem;line-height:1.
 </head>
 <body>
 <h1>Vera Mesh</h1>
-<p class="state">BLOCKED: <code>BLOCKED_MESH_NOT_IMPLEMENTED</code></p>
-<p>This package can prove DSM packaging, lifecycle and local service structure. It does not claim Mesh readiness.</p>
+<p class="state">Package mode: <strong>safe idle / unpaired</strong></p>
+<p>The VeraMesh package service may run normally in Package Center while network Mesh transport remains disabled in this repair candidate. It opens no TCP Mesh listener and performs no pairing or delivery.</p>
+<p>Current Mesh semantic guard: <code>BLOCKED_MESH_NOT_IMPLEMENTED</code>.</p>
+<h2>Diagnostics</h2>
+<ul>
+<li>Package Center is the operator source for Start / Stop / running state.</li>
+<li>The package-private local control socket reports runtime binding and installation-incarnation diagnostics to the test harness.</li>
+<li>Any package start failure is a repair failure, not an expected state.</li>
+</ul>
 <h2>Semantic state vocabulary</h2>
 <ul><li>UNPAIRED_READY</li><li>READY</li><li>DEGRADED</li><li>BLOCKED</li></ul>
-<p>The scaffold is intentionally fixed at <strong>BLOCKED</strong> until the separately reviewed Mesh core is integrated.</p>
+<p>Mesh transport itself remains <strong>BLOCKED</strong> until the separately reviewed Mesh core is integrated.</p>
 </body>
 </html>

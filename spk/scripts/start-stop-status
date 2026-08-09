@@ -3,7 +3,6 @@ set -eu
 PY="/var/packages/python311/target/bin/python3.11"
 STATE="/var/packages/VeraMesh/var/vera/scaffold-state.json"
 LIFECYCLE="$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py"
-START_READINESS="$SYNOPKG_PKGDEST/bin/veramesh_start_readiness.py"
 
 case "${1:-}" in
   prestart)
@@ -12,7 +11,19 @@ case "${1:-}" in
   prestop)
     ;;
   start)
-    exec "$PY" "$START_READINESS" start
+    # Target-validation observation window only. The real DS216 Package Center
+    # start run must accept or revise these values before any release claim.
+    export PYTHONPATH="$SYNOPKG_PKGDEST/bin"
+    exec "$PY" -c '
+import veramesh_start_readiness as r
+r.TARGET_POLICY = r.ReadinessPolicy(
+    deadline_ns=30_000_000_000,
+    poll_interval_ns=250_000_000,
+    probe_timeout_cap_ns=1_000_000_000,
+    transient_stage_errnos=frozenset(),
+)
+raise SystemExit(r.runtime_start())
+'
     ;;
   stop)
     exec "$PY" "$LIFECYCLE" stop

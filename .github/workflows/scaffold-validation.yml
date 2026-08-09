@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/mesh-first-install-spk-v1
+      - feature/mesh-ds216-target-first-repair-v1
   workflow_dispatch:
 
 permissions:
