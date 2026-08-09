@@ -251,16 +251,18 @@ def start_transition_bounded(
         return 4
 
 
-def _set_remaining_socket_timeout(client, deadline_at_ns: int, monotonic_ns: Callable[[], int]) -> bool:
+def _set_remaining_socket_timeout(
+    client, deadline_at_ns: int, monotonic_ns: Callable[[], int]
+) -> str | None:
     try:
         now_ns = monotonic_ns()
     except Exception:
-        return False
+        return "probe_deadline_expired"
     if isinstance(now_ns, bool) or not isinstance(now_ns, int):
-        return False
+        return "probe_deadline_expired"
     remaining_ns = deadline_at_ns - now_ns
     if remaining_ns <= 0:
-        return False
+        return "probe_deadline_expired"
     seconds = remaining_ns / NS_PER_SECOND
     # Socket APIs require seconds as float. Runtime acceptance still uses the
     # integer absolute deadline after every blocking result, so float rounding
@@ -268,8 +270,11 @@ def _set_remaining_socket_timeout(client, deadline_at_ns: int, monotonic_ns: Cal
     timeout = math.nextafter(seconds, 0.0)
     if timeout <= 0.0:
         timeout = seconds
-    client.settimeout(timeout)
-    return True
+    try:
+        client.settimeout(timeout)
+    except Exception:
+        return "socket_timeout_configuration_error"
+    return None
 
 
 def _classify_oserror(
@@ -324,8 +329,9 @@ def probe_control_socket_bounded(
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         try:
-            if not _set_remaining_socket_timeout(client, deadline_at_ns, monotonic_ns):
-                return ReadinessObservation.transport_error("probe_deadline_expired")
+            timeout_error = _set_remaining_socket_timeout(client, deadline_at_ns, monotonic_ns)
+            if timeout_error is not None:
+                return ReadinessObservation.transport_error(timeout_error)
             client.connect(str(api.SOCKET_PATH))
         except (TimeoutError, socket.timeout):
             return ReadinessObservation.transport_error("probe_deadline_expired")
@@ -335,8 +341,9 @@ def probe_control_socket_bounded(
             return ReadinessObservation.transport_error("probe_deadline_expired")
 
         try:
-            if not _set_remaining_socket_timeout(client, deadline_at_ns, monotonic_ns):
-                return ReadinessObservation.transport_error("probe_deadline_expired")
+            timeout_error = _set_remaining_socket_timeout(client, deadline_at_ns, monotonic_ns)
+            if timeout_error is not None:
+                return ReadinessObservation.transport_error(timeout_error)
             client.sendall(b'{"op":"status"}\n')
         except (TimeoutError, socket.timeout):
             return ReadinessObservation.transport_error("probe_deadline_expired")
@@ -350,8 +357,9 @@ def probe_control_socket_bounded(
         while True:
             stage = "FINALITY" if newline >= 0 else "RECEIVE"
             try:
-                if not _set_remaining_socket_timeout(client, deadline_at_ns, monotonic_ns):
-                    return ReadinessObservation.transport_error("probe_deadline_expired")
+                timeout_error = _set_remaining_socket_timeout(client, deadline_at_ns, monotonic_ns)
+                if timeout_error is not None:
+                    return ReadinessObservation.transport_error(timeout_error)
                 chunk = client.recv(1024)
             except (TimeoutError, socket.timeout):
                 return ReadinessObservation.transport_error("probe_deadline_expired")

@@ -140,16 +140,19 @@ class DelayedPath:
 
 
 class FakeSocket:
-    def __init__(self, clock, *, connect=None, send=None, recv=None):
+    def __init__(self, clock, *, connect=None, send=None, recv=None, settimeout=None):
         self.clock = clock
         self.connect_action = connect
         self.send_action = send
         self.recv_actions = list(recv or [])
+        self.settimeout_actions = list(settimeout or [])
         self.timeouts = []
         self.closed = False
 
     def settimeout(self, value):
         self.timeouts.append(value)
+        if self.settimeout_actions:
+            return self._run(self.settimeout_actions.pop(0))
 
     def _run(self, action, default=None):
         if action is None:
@@ -501,6 +504,54 @@ class StartReadinessContractTests(unittest.TestCase):
         obs = self._probe_with_fake(path, fake, transients={("RECEIVE", errno.EAGAIN)})
         self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
         self.assertEqual("finality_errno_11", obs.cause)
+
+    def test_connect_settimeout_oserror_never_inherits_connect_retry(self):
+        path = DelayedPath(self.clock, 1, type("S", (), {"st_mode": stat.S_IFSOCK | 0o600})())
+        fake = FakeSocket(self.clock, settimeout=[(1, OSError(errno.EAGAIN, "config"))])
+        obs = self._probe_with_fake(path, fake, transients={("CONNECT", errno.EAGAIN)})
+        self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
+        self.assertEqual("socket_timeout_configuration_error", obs.cause)
+
+    def test_send_settimeout_oserror_never_inherits_send_retry(self):
+        path = DelayedPath(self.clock, 1, type("S", (), {"st_mode": stat.S_IFSOCK | 0o600})())
+        fake = FakeSocket(
+            self.clock,
+            connect=(1, None),
+            settimeout=[(0, None), (1, OSError(errno.EAGAIN, "config"))],
+        )
+        obs = self._probe_with_fake(path, fake, transients={("SEND", errno.EAGAIN)})
+        self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
+        self.assertEqual("socket_timeout_configuration_error", obs.cause)
+
+    def test_receive_settimeout_oserror_never_inherits_receive_retry(self):
+        path = DelayedPath(self.clock, 1, type("S", (), {"st_mode": stat.S_IFSOCK | 0o600})())
+        fake = FakeSocket(
+            self.clock,
+            connect=(1, None),
+            send=(1, None),
+            settimeout=[(0, None), (0, None), (1, OSError(errno.EAGAIN, "config"))],
+        )
+        obs = self._probe_with_fake(path, fake, transients={("RECEIVE", errno.EAGAIN)})
+        self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
+        self.assertEqual("socket_timeout_configuration_error", obs.cause)
+
+    def test_finality_settimeout_oserror_never_inherits_finality_retry(self):
+        path = DelayedPath(self.clock, 1, type("S", (), {"st_mode": stat.S_IFSOCK | 0o600})())
+        fake = FakeSocket(
+            self.clock,
+            connect=(1, None),
+            send=(1, None),
+            recv=[(1, b'{"result":"LIVE"}\n')],
+            settimeout=[
+                (0, None),
+                (0, None),
+                (0, None),
+                (1, OSError(errno.EAGAIN, "config")),
+            ],
+        )
+        obs = self._probe_with_fake(path, fake, transients={("FINALITY", errno.EAGAIN)})
+        self.assertEqual(self.mod.ReadinessKind.TRANSPORT_ERROR, obs.kind)
+        self.assertEqual("socket_timeout_configuration_error", obs.cause)
 
     @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "AF_UNIX required")
     def test_real_probe_rejects_delayed_trailing_bytes_after_valid_line(self):
