@@ -10,10 +10,12 @@ class SpkSuccessorContractTests(unittest.TestCase):
         self.assertIn('arch="armada38x"\n', info)
         self.assertNotIn('arch="noarch"', info)
 
-    def test_start_stop_status_delegates_all_lifecycle_truth_to_package_oracle(self):
+    def test_start_uses_bounded_readiness_adapter_while_stop_status_keep_package_oracle(self):
         script = (ROOT / "spk" / "scripts" / "start-stop-status").read_text(encoding="utf-8")
         self.assertIn('LIFECYCLE="$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py"', script)
-        self.assertIn('exec "$PY" "$LIFECYCLE" start', script)
+        self.assertIn('START_READINESS="$SYNOPKG_PKGDEST/bin/veramesh_start_readiness.py"', script)
+        self.assertIn('exec "$PY" "$START_READINESS" start', script)
+        self.assertNotIn('exec "$PY" "$LIFECYCLE" start', script)
         self.assertIn('exec "$PY" "$LIFECYCLE" stop', script)
         self.assertIn('exec "$PY" "$LIFECYCLE" status', script)
         self.assertNotIn('synosystemctl status', script)
