@@ -1,9 +1,8 @@
 #!/bin/sh
 set -eu
-UNIT="pkguser-veramesh.service"
-CTL="/usr/syno/bin/synosystemctl"
 PY="/var/packages/python311/target/bin/python3.11"
 STATE="/var/packages/VeraMesh/var/vera/scaffold-state.json"
+LIFECYCLE="$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py"
 
 case "${1:-}" in
   prestart)
@@ -12,16 +11,13 @@ case "${1:-}" in
   prestop)
     ;;
   start)
-    "$CTL" start "$UNIT"
+    exec "$PY" "$LIFECYCLE" start
     ;;
   stop)
-    "$CTL" stop "$UNIT"
+    exec "$PY" "$LIFECYCLE" stop
     ;;
   status)
-    if "$CTL" status "$UNIT" >/dev/null 2>&1; then
-      exit 0
-    fi
-    exit 3
+    exec "$PY" "$LIFECYCLE" status
     ;;
   *)
     exit 4

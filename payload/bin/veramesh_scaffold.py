@@ -9,6 +9,8 @@ import stat
 import sys
 from pathlib import Path
 
+from veramesh_lifecycle import STATE_PATH as LIFECYCLE_STATE
+from veramesh_lifecycle import StartupBinding, capture_startup_binding
 from veramesh_state import verify
 
 STATE = Path("/var/packages/VeraMesh/var/vera/scaffold-state.json")
@@ -18,7 +20,7 @@ MAX_REQUEST = 4096
 CONNECTION_TIMEOUT_SECONDS = 1.0
 
 
-def status_payload() -> dict:
+def status_payload(binding: StartupBinding) -> dict:
     state = verify(STATE)
     return {
         "schema": "VERA_MESH_SCAFFOLD_STATUS_V1",
@@ -28,6 +30,13 @@ def status_payload() -> dict:
         "pairing_implemented": False,
         "tcp_mesh_listener": False,
         "mesh_delivery_implemented": False,
+        "lifecycle_profile_id": binding.lifecycle_profile_id,
+        "lifecycle_profile_sha256": binding.lifecycle_profile_sha256,
+        "package_version": binding.package_version,
+        "installation_incarnation_id": binding.installation_incarnation_id,
+        "start_generation": binding.start_generation,
+        "start_transition_id": binding.start_transition_id,
+        "process_instance_id": binding.process_instance_id,
     }
 
 
@@ -76,6 +85,7 @@ def _send_json_response(conn: socket.socket, response: dict) -> bool:
 
 def serve() -> int:
     verify(STATE)
+    binding = capture_startup_binding(LIFECYCLE_STATE)
     _prepare_socket_path()
     stop = False
 
@@ -109,7 +119,7 @@ def serve() -> int:
                     if request != {"op": "status"}:
                         response = {"error": "UNSUPPORTED_OPERATION"}
                     else:
-                        response = status_payload()
+                        response = status_payload(binding)
                 _send_json_response(conn, response)
     finally:
         server.close()
@@ -124,10 +134,7 @@ def serve() -> int:
 def main(argv: list[str]) -> int:
     if argv[1:] == ["serve"]:
         return serve()
-    if argv[1:] == ["status"]:
-        print(json.dumps(status_payload(), sort_keys=True, separators=(",", ":")))
-        return 0
-    print("usage: veramesh_scaffold.py {serve|status}", file=sys.stderr)
+    print("usage: veramesh_scaffold.py serve", file=sys.stderr)
     return 64
 
 

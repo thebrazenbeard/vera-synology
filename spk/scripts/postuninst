@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
-# Durable state is intentionally not deleted by this scaffold. Destructive
-# uninstall semantics remain a separately qualified operator/device gate.
+PY=/var/packages/python311/target/bin/python3.11
+if [ "${SYNOPKG_PKG_STATUS:-}" = "UNINSTALL" ]; then
+  "$PY" "$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py" retire-uninstall
+fi
+# Mesh/trust/inbox durable data remains untouched.
 exit 0

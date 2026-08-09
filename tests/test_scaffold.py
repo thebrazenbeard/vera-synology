@@ -29,6 +29,8 @@ build_spk = load_module("build_spk", ROOT / "tools" / "build_spk.py")
 verify_spk = load_module("verify_spk", ROOT / "tools" / "verify_spk.py")
 state_mod = load_module("veramesh_state", ROOT / "payload" / "bin" / "veramesh_state.py")
 sys.modules["veramesh_state"] = state_mod
+lifecycle_mod = load_module("veramesh_lifecycle", ROOT / "payload" / "bin" / "veramesh_lifecycle.py")
+sys.modules["veramesh_lifecycle"] = lifecycle_mod
 scaffold_mod = load_module("veramesh_scaffold", ROOT / "payload" / "bin" / "veramesh_scaffold.py")
 
 
@@ -41,7 +43,8 @@ class SourceContractTests(unittest.TestCase):
             'spk/scripts/postinst','spk/scripts/preuninst','spk/scripts/postuninst',
             'spk/scripts/preupgrade','spk/scripts/postupgrade','spk/scripts/start-stop-status',
             'payload/bin/veramesh_state.py','payload/bin/veramesh_scaffold.py',
-            'payload/ui/config','payload/ui/index.html','docs/TOOLKIT_QUALIFICATION.md',
+            'payload/bin/veramesh_lifecycle.py','payload/ui/config','payload/ui/index.html',
+            'docs/TOOLKIT_QUALIFICATION.md',
         ]
         missing = [p for p in required if not (ROOT / p).is_file()]
         self.assertEqual([], missing, f'missing required source paths: {missing}')
@@ -50,7 +53,7 @@ class SourceContractTests(unittest.TestCase):
         info = (ROOT / 'spk/INFO').read_text()
         for token in [
             'package="VeraMesh"','version="0.0.1-0002"','os_min_ver="7.2-72806"',
-            'description=','arch="noarch"','maintainer=','dsmuidir="ui"',
+            'description=','arch="armada38x"','maintainer=','dsmuidir="ui"',
             'dsmappname="com.vera.MeshScaffold"','precheckstartstop="yes"',
         ]:
             self.assertIn(token, info)
@@ -189,7 +192,7 @@ class BuildAndVerifyTests(unittest.TestCase):
     def test_built_spk_passes_structural_verifier(self):
         result = verify_spk.verify_bytes(build_spk.build_spk_bytes())
         self.assertGreaterEqual(result['outer_members'], 15)
-        self.assertGreaterEqual(result['payload_members'], 11)
+        self.assertGreaterEqual(result['payload_members'], 12)
 
     def test_built_archive_has_no_duplicate_members_and_scripts_are_executable(self):
         spk = build_spk.build_spk_bytes()
@@ -227,7 +230,7 @@ class BuildAndVerifyTests(unittest.TestCase):
                     tf.addfile(ti, io.BytesIO(data))
         spk_raw = io.BytesIO()
         outer_files = {
-            "INFO": b'package="VeraMesh"\nversion="0.0.1-0002"\nos_min_ver="7.2-72806"\narch="noarch"\ndsmuidir="ui"\ndsmappname="com.vera.MeshScaffold"\n',
+            "INFO": b'package="VeraMesh"\nversion="0.0.1-0002"\nos_min_ver="7.2-72806"\narch="armada38x"\ndsmuidir="ui"\ndsmappname="com.vera.MeshScaffold"\n',
             "package.tgz": package_raw.getvalue(),
             "conf/PKG_DEPS": b"[python311]\n",
             "conf/privilege": b'{"defaults":{"run-as":"package"}}',

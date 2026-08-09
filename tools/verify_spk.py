@@ -27,14 +27,20 @@ REQUIRED_OUTER = {
     "PACKAGE_ICON.PNG",
     "PACKAGE_ICON_256.PNG",
 }
-REQUIRED_PAYLOAD = {"bin/veramesh_state.py", "bin/veramesh_scaffold.py", "ui/config", "ui/index.html"}
+REQUIRED_PAYLOAD = {
+    "bin/veramesh_lifecycle.py",
+    "bin/veramesh_state.py",
+    "bin/veramesh_scaffold.py",
+    "ui/config",
+    "ui/index.html",
+}
 INFO_LINE = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)="([^"\r\n]*)"')
 INFO_EXPECTED = {
     "package": "VeraMesh",
     "version": "0.0.1-0002",
     "os_min_ver": "7.2-72806",
     "description": "Vera Mesh first-install scaffold; Mesh transport is not implemented in this candidate.",
-    "arch": "noarch",
+    "arch": "armada38x",
     "maintainer": "V.E.R.A. Build Team Two",
     "thirdparty": "yes",
     "precheckstartstop": "yes",
@@ -60,7 +66,35 @@ SYSTEMD_EXPECTED = {
     },
     "Install": {"WantedBy": "default.target"},
 }
-METADATA_PROFILE_ID = "SPK_FIRST_SLICE_METADATA_PROFILE_V1"
+LIFECYCLE_PROFILE_ID = "VERA_MESH_FIRST_SLICE_LIFECYCLE_PROFILE_V1"
+LIFECYCLE_PROFILE_SHA256 = "3a33143546bb9796a1fd931b319941628bf7b40b1b82ac40738676836ea50046"
+METADATA_PROFILE_ID = "SPK_FIRST_SLICE_STABLE_LIFECYCLE_PROFILE_V3"
+SPK_PROFILE_DESCRIPTOR = {
+    "schema": METADATA_PROFILE_ID,
+    "info": INFO_EXPECTED,
+    "privilege": PRIVILEGE_EXPECTED,
+    "resource": RESOURCE_EXPECTED,
+    "pkg_deps": PKG_DEPS_EXPECTED,
+    "systemd": SYSTEMD_EXPECTED,
+    "required_payload": sorted(REQUIRED_PAYLOAD),
+    "lifecycle_profile_id": LIFECYCLE_PROFILE_ID,
+    "lifecycle_profile_sha256": LIFECYCLE_PROFILE_SHA256,
+    "first_slice_acceptance_findings": [
+        "MESH-FOUR-SPK-STATUS-UNKNOWN-COLLAPSE-007",
+        "MESH-FOUR-SPK-PACKAGE-OWNED-INITIAL-STOPPED-GAP-008",
+        "MESH-FOUR-SPK-LIFECYCLE-RESPONDER-BINDING-010",
+    ],
+    "release_later_not_acceptance_transferred": [
+        "MESH-FOUR-SPK-INFO-ARCH-SCOPE-006",
+        "MESH-FOUR-SPK-LIFECYCLE-CROSS-INSTALL-CONTAMINATION-009",
+        "MESH-FOUR-SPK-LIFECYCLE-FAIL-SAFE-STOP-011",
+        "MESH-SEVEN-SPK-LIFECYCLE-INCOMPLETE-TRANSITION-RECOVERY-012",
+    ],
+}
+SPK_PROFILE_BYTES = json.dumps(
+    SPK_PROFILE_DESCRIPTOR, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+).encode("utf-8")
+SPK_PROFILE_SHA256 = hashlib.sha256(SPK_PROFILE_BYTES).hexdigest()
 
 
 def _expected_mode(name: str, archive_kind: str) -> int:
@@ -282,6 +316,9 @@ def verify_bytes(spk: bytes, source_manifest: list[dict] | None = None) -> dict:
         "outer_members": len(om),
         "payload_members": len(im),
         "metadata_profile": METADATA_PROFILE_ID,
+        "metadata_profile_sha256": SPK_PROFILE_SHA256,
+        "lifecycle_profile": LIFECYCLE_PROFILE_ID,
+        "lifecycle_profile_sha256": LIFECYCLE_PROFILE_SHA256,
         "source_manifest_crossbind": source_manifest is not None,
     }
 

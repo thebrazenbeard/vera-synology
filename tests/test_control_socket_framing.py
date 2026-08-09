@@ -21,6 +21,8 @@ def load_module(name: str, path: Path):
 
 state_mod = load_module("veramesh_state", ROOT / "payload" / "bin" / "veramesh_state.py")
 sys.modules["veramesh_state"] = state_mod
+lifecycle_mod = load_module("veramesh_lifecycle", ROOT / "payload" / "bin" / "veramesh_lifecycle.py")
+sys.modules["veramesh_lifecycle"] = lifecycle_mod
 scaffold_mod = load_module("veramesh_scaffold_framing", ROOT / "payload" / "bin" / "veramesh_scaffold.py")
 
 

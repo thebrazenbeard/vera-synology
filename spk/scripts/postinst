@@ -3,3 +3,4 @@ set -eu
 PY=/var/packages/python311/target/bin/python3.11
 STATE=/var/packages/VeraMesh/var/vera/scaffold-state.json
 "$PY" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" initialize "$STATE"
+"$PY" "$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py" postinstall "${SYNOPKG_PKG_STATUS:-}"

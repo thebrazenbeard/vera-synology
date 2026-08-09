@@ -58,12 +58,12 @@ class InfoContractTests(unittest.TestCase):
             verify_spk.verify_bytes(replace_info(hostile))
 
     def test_identical_duplicate_field_is_rejected(self):
-        hostile = self._valid_info() + b'arch="noarch"\n'
+        hostile = self._valid_info() + b'arch="armada38x"\n'
         with self.assertRaisesRegex(ValueError, "duplicate field: arch"):
             verify_spk.verify_bytes(replace_info(hostile))
 
     def test_malformed_quoting_is_rejected(self):
-        hostile = self._valid_info().replace(b'arch="noarch"\n', b'arch="noarch\n')
+        hostile = self._valid_info().replace(b'arch="armada38x"\n', b'arch="armada38x\n')
         with self.assertRaisesRegex(ValueError, "malformed assignment"):
             verify_spk.verify_bytes(replace_info(hostile))
 
