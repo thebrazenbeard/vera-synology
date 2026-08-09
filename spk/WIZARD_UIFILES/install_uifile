@@ -1,0 +1,12 @@
+[
+  {
+    "step_title": "VERA Mesh target-first repair",
+    "items": [
+      {
+        "type": "textfield",
+        "desc": "This build starts only into SAFE IDLE / UNPAIRED mode. It opens no network listener and does not enable Mesh transport. After installation, use Package Center Start and Open to validate lifecycle and diagnostics.",
+        "subitems": []
+      }
+    ]
+  }
+]

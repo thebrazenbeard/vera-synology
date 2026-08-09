@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
-PY=/var/packages/python311/target/bin/python3.11
-STATE=/var/packages/VeraMesh/var/vera/scaffold-state.json
-"$PY" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" initialize "$STATE"
-"$PY" "$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py" postinstall "${SYNOPKG_PKG_STATUS:-}"
+NODE_BIN="${VERAMESH_NODE_BIN:-/usr/local/bin/node}"
+PKG_DEST="${SYNOPKG_PKGDEST:-/var/packages/VeraMesh/target}"
+PKG_VAR="${SYNOPKG_PKGVAR:-/var/packages/VeraMesh/var}"
+mkdir -p "$PKG_VAR/run" "$PKG_VAR/state"
+chmod 700 "$PKG_VAR" "$PKG_VAR/run" "$PKG_VAR/state" 2>/dev/null || true
+VERAMESH_VAR="$PKG_VAR" VERAMESH_UI_DIR="$PKG_DEST/ui" \
+  "$NODE_BIN" "$PKG_DEST/app/veramesh_daemon.js" --write-stopped "installed"
+exit 0

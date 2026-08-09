@@ -1,0 +1,31 @@
+name: Target-first SPK validation
+on:
+  push:
+    branches:
+      - "repair/ds216-target-first-spk-v1"
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check pytest pillow
+      - run: sh -n spk/scripts/*
+      - run: node payload/app/veramesh_daemon.js --self-test
+      - run: python -m pytest -q
+      - run: python tools/build_spk.py
+      - run: python tools/verify_spk.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: veramesh-ds216-target-first-${{ github.sha }}
+          path: dist/VeraMesh-0.1.0-0003-target-first-repair.spk
+          if-no-files-found: error

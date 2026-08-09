@@ -3,17 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vera Mesh</title>
+<title>VERA Mesh</title>
 <style>
-body{font-family:system-ui,sans-serif;margin:2rem;max-width:52rem;line-height:1.45}code{background:#eee;padding:.15rem .3rem;border-radius:.2rem}.state{font-weight:700}ul{padding-left:1.2rem}
+:root{color-scheme:dark;--bg:#13070d;--card:#241019;--line:#542033;--text:#f8e9ee;--muted:#c8aab4;--good:#77d69b;--warn:#f3c86b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#35101f 0,#16090f 42%,#0b0508 100%);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text)}
+main{max-width:820px;margin:34px auto;padding:0 18px}.hero{display:flex;align-items:center;gap:18px;margin-bottom:22px}.hero img{width:88px;height:88px}.hero h1{margin:0;font-size:30px}.hero p{margin:4px 0 0;color:var(--muted)}
+.card{background:rgba(36,16,25,.94);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 18px 60px #0008}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.metric{background:#160a10;border:1px solid #3c1725;border-radius:12px;padding:13px}.metric b{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.metric span{display:block;margin-top:5px;font-size:16px;word-break:break-word}
+.good{color:var(--good)}.warn{color:var(--warn)}footer{color:var(--muted);margin-top:16px;font-size:12px}
 </style>
 </head>
 <body>
-<h1>Vera Mesh</h1>
-<p class="state">BLOCKED: <code>BLOCKED_MESH_NOT_IMPLEMENTED</code></p>
-<p>This package can prove DSM packaging, lifecycle and local service structure. It does not claim Mesh readiness.</p>
-<h2>Semantic state vocabulary</h2>
-<ul><li>UNPAIRED_READY</li><li>READY</li><li>DEGRADED</li><li>BLOCKED</li></ul>
-<p>The scaffold is intentionally fixed at <strong>BLOCKED</strong> until the separately reviewed Mesh core is integrated.</p>
+<main>
+  <div class="hero"><img src="images/app_256.png" alt="VERA"><div><h1>VERA Mesh</h1><p>DS216 target-first repair diagnostics</p></div></div>
+  <section class="card">
+    <div class="grid">
+      <div class="metric"><b>Package service</b><span id="service">Loading…</span></div>
+      <div class="metric"><b>Mesh mode</b><span id="mesh">Loading…</span></div>
+      <div class="metric"><b>Pairing</b><span id="pairing">Loading…</span></div>
+      <div class="metric"><b>Transport</b><span id="transport">Loading…</span></div>
+      <div class="metric"><b>Runtime</b><span id="runtime">Loading…</span></div>
+      <div class="metric"><b>PID</b><span id="pid">Loading…</span></div>
+      <div class="metric"><b>Updated</b><span id="updated">Loading…</span></div>
+      <div class="metric"><b>Reason</b><span id="reason">Loading…</span></div>
+    </div>
+    <footer>This repair generation deliberately opens no network listener. Success means DSM can install, start, stop, report status, and open this diagnostic surface normally while remaining SAFE IDLE / UNPAIRED.</footer>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+async function refresh(){
+  try{
+    const r=await fetch('runtime-status.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const s=await r.json();
+    $('service').textContent=s.serviceState||'UNKNOWN';
+    $('service').className=s.serviceState==='RUNNING'?'good':'warn';
+    $('mesh').textContent=s.meshState||'UNKNOWN';
+    $('pairing').textContent=s.pairingEnabled?'ENABLED':'DISABLED';
+    $('transport').textContent=s.transportEnabled?'ENABLED':'DISABLED';
+    $('runtime').textContent=s.runtime||'UNKNOWN';
+    $('pid').textContent=s.pid??'—';
+    $('updated').textContent=s.updatedAt||'—';
+    $('reason').textContent=s.reason||'—';
+  }catch(e){$('service').textContent='DIAGNOSTIC_READ_FAILED';$('service').className='warn';$('reason').textContent=String(e);}
+}
+refresh(); setInterval(refresh,2000);
+</script>
 </body>
 </html>

@@ -1,27 +1,182 @@
 #!/bin/sh
 set -eu
-PY="/var/packages/python311/target/bin/python3.11"
-STATE="/var/packages/VeraMesh/var/vera/scaffold-state.json"
-LIFECYCLE="$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py"
-START_READINESS="$SYNOPKG_PKGDEST/bin/veramesh_start_readiness.py"
+
+PKG_NAME="VeraMesh"
+NODE_BIN="${VERAMESH_NODE_BIN:-/usr/local/bin/node}"
+PKG_DEST="${SYNOPKG_PKGDEST:-/var/packages/${PKG_NAME}/target}"
+PKG_VAR="${SYNOPKG_PKGVAR:-/var/packages/${PKG_NAME}/var}"
+DAEMON="$PKG_DEST/app/veramesh_daemon.js"
+PIDFILE="$PKG_VAR/run/veramesh.pid"
+LOGFILE="$PKG_VAR/veramesh.log"
+UI_DIR="$PKG_DEST/ui"
+STATE_FILE="$PKG_VAR/state/runtime.json"
+
+realpath_safe() { readlink -f "$1" 2>/dev/null || printf '%s\n' "$1"; }
+DAEMON_REAL="$(realpath_safe "$DAEMON")"
+
+prepare_dirs() {
+  mkdir -p "$PKG_VAR/run" "$PKG_VAR/state"
+  chmod 700 "$PKG_VAR" "$PKG_VAR/run" "$PKG_VAR/state" 2>/dev/null || true
+}
+
+node_ok() {
+  [ -x "$NODE_BIN" ] || return 1
+  "$NODE_BIN" -e 'process.exit(Number(process.versions.node.split(".")[0]) === 22 ? 0 : 1)' >/dev/null 2>&1
+}
+
+candidate_script_real() {
+  PID="$1"
+  [ -r "/proc/$PID/cmdline" ] || return 1
+  SCRIPT="$(tr '\000' '\n' < "/proc/$PID/cmdline" | sed -n '2p')"
+  [ -n "$SCRIPT" ] || return 1
+  realpath_safe "$SCRIPT"
+}
+
+discover_daemons() {
+  for PROC in /proc/[0-9]*; do
+    [ -d "$PROC" ] || continue
+    PID="${PROC#/proc/}"
+    [ "$(candidate_script_real "$PID" 2>/dev/null || true)" = "$DAEMON_REAL" ] && printf '%s\n' "$PID"
+  done
+  return 0
+}
+
+count_lines() { awk 'NF{n++} END{print n+0}'; }
+single_line() { awk 'NF{print; exit}'; }
+
+state_running_for_pid() {
+  PID="$1"
+  [ -r "$STATE_FILE" ] || return 1
+  grep -q '"serviceState": "RUNNING"' "$STATE_FILE" &&
+  grep -q "\"pid\": $PID" "$STATE_FILE"
+}
+
+write_pidfile() {
+  prepare_dirs
+  TMP="$PKG_VAR/run/.veramesh.pid.$$"
+  printf '%s\n' "$1" > "$TMP"
+  chmod 600 "$TMP"
+  mv -f "$TMP" "$PIDFILE"
+}
+
+write_stopped() {
+  prepare_dirs
+  VERAMESH_VAR="$PKG_VAR" VERAMESH_UI_DIR="$UI_DIR" "$NODE_BIN" "$DAEMON" --write-stopped "${1:-stopped}"
+}
 
 case "${1:-}" in
   prestart)
-    "$PY" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" verify "$STATE"
+    node_ok || { echo "Node.js v22 runtime unavailable at $NODE_BIN" >&2; exit 1; }
+    [ -r "$DAEMON" ] || { echo "VeraMesh daemon missing: $DAEMON" >&2; exit 1; }
+    exit 0
     ;;
   prestop)
+    exit 0
     ;;
   start)
-    exec "$PY" "$START_READINESS" start
+    prepare_dirs
+    node_ok || { echo "Node.js v22 runtime unavailable at $NODE_BIN" >&2; exit 1; }
+    [ -r "$DAEMON" ] || { echo "VeraMesh daemon missing: $DAEMON" >&2; exit 1; }
+
+    PIDS="$(discover_daemons)"
+    COUNT="$(printf '%s\n' "$PIDS" | count_lines)"
+    if [ "$COUNT" -gt 1 ]; then
+      echo "multiple_veramesh_daemons:$COUNT" >&2
+      exit 1
+    fi
+    if [ "$COUNT" -eq 1 ]; then
+      PID="$(printf '%s\n' "$PIDS" | single_line)"
+      if state_running_for_pid "$PID"; then
+        write_pidfile "$PID"
+        exit 0
+      fi
+      echo "existing_veramesh_daemon_not_ready:$PID" >&2
+      exit 1
+    fi
+
+    rm -f "$PIDFILE"
+    VERAMESH_VAR="$PKG_VAR" VERAMESH_UI_DIR="$UI_DIR" \
+      nohup "$NODE_BIN" "$DAEMON" >>"$LOGFILE" 2>&1 &
+    PID="$!"
+    write_pidfile "$PID"
+
+    ATTEMPT=0
+    while [ "$ATTEMPT" -lt 15 ]; do
+      if kill -0 "$PID" 2>/dev/null && \
+         [ "$(candidate_script_real "$PID" 2>/dev/null || true)" = "$DAEMON_REAL" ] && \
+         state_running_for_pid "$PID"; then
+        exit 0
+      fi
+      ATTEMPT=$((ATTEMPT + 1))
+      sleep 1
+    done
+
+    kill -TERM "$PID" 2>/dev/null || true
+    sleep 1
+    rm -f "$PIDFILE"
+    write_stopped "startup_failed" 2>/dev/null || true
+    echo "veramesh_startup_timeout" >&2
+    exit 1
     ;;
   stop)
-    exec "$PY" "$LIFECYCLE" stop
+    node_ok || { echo "Node.js v22 runtime unavailable at $NODE_BIN" >&2; exit 1; }
+    PIDS="$(discover_daemons)"
+    COUNT="$(printf '%s\n' "$PIDS" | count_lines)"
+    if [ "$COUNT" -gt 1 ]; then
+      echo "multiple_veramesh_daemons:$COUNT" >&2
+      exit 1
+    fi
+    if [ "$COUNT" -eq 0 ]; then
+      rm -f "$PIDFILE"
+      write_stopped "already_stopped"
+      exit 0
+    fi
+
+    PID="$(printf '%s\n' "$PIDS" | single_line)"
+    kill -TERM "$PID" 2>/dev/null || true
+    ATTEMPT=0
+    while [ "$ATTEMPT" -lt 15 ]; do
+      kill -0 "$PID" 2>/dev/null || break
+      ATTEMPT=$((ATTEMPT + 1))
+      sleep 1
+    done
+    if kill -0 "$PID" 2>/dev/null; then
+      kill -KILL "$PID" 2>/dev/null || true
+      sleep 1
+    fi
+    if kill -0 "$PID" 2>/dev/null; then
+      echo "veramesh_process_remains_after_stop:$PID" >&2
+      exit 1
+    fi
+    rm -f "$PIDFILE"
+    write_stopped "operator_or_dsm_stop"
+    exit 0
     ;;
   status)
-    exec "$PY" "$LIFECYCLE" status
+    PIDS="$(discover_daemons)"
+    COUNT="$(printf '%s\n' "$PIDS" | count_lines)"
+    if [ "$COUNT" -gt 1 ]; then
+      echo "multiple_veramesh_daemons:$COUNT" >&2
+      exit 4
+    fi
+    if [ "$COUNT" -eq 1 ]; then
+      PID="$(printf '%s\n' "$PIDS" | single_line)"
+      state_running_for_pid "$PID" || exit 4
+      write_pidfile "$PID"
+      exit 0
+    fi
+    [ -f "$PIDFILE" ] && exit 1
+    exit 3
+    ;;
+  restart)
+    "$0" stop
+    "$0" start
+    ;;
+  log)
+    [ -f "$LOGFILE" ] && tail -n 200 "$LOGFILE" || true
     ;;
   *)
+    echo "Usage: $0 {prestart|prestop|start|stop|status|restart|log}" >&2
     exit 4
     ;;
 esac
-exit 0

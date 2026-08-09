@@ -1,11 +1,12 @@
 {
   ".url": {
-    "com.vera.MeshScaffold": {
+    "com.vera.Mesh": {
       "type": "url",
       "icon": "images/app_{0}.png",
-      "title": "Vera Mesh",
-      "desc": "First-install scaffold status",
-      "url": "3rdparty/VeraMesh/index.html"
+      "title": "VERA Mesh",
+      "desc": "VERA Mesh DS216 target-first diagnostics",
+      "url": "3rdparty/VeraMesh/index.html",
+      "allUsers": false
     }
   }
 }

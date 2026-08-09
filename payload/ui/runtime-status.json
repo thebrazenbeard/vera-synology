@@ -1,0 +1,15 @@
+{
+  "schema": "VERAMESH_TARGET_FIRST_STATUS_V1",
+  "package": "VeraMesh",
+  "version": "0.1.0-0003",
+  "serviceState": "INSTALLED_STOPPED",
+  "meshState": "SAFE_IDLE_UNPAIRED",
+  "pairingEnabled": false,
+  "transportEnabled": false,
+  "listener": null,
+  "runtime": "Node.js v22 required",
+  "architecture": "armada38x target",
+  "pid": null,
+  "updatedAt": null,
+  "reason": "package_payload_default"
+}

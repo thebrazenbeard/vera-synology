@@ -1,7 +1,1 @@
-{
-  "defaults": {
-    "run-as": "package"
-  },
-  "username": "VeraMesh",
-  "groupname": "VeraMesh"
-}
+{"defaults":{"run-as":"package"},"username":"veramesh","groupname":"veramesh"}
