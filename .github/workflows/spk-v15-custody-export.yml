@@ -1,0 +1,42 @@
+name: SPK V15 custody export
+
+on:
+  push:
+    branches:
+      - transport/spk-v15-custody-artifact-v1
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact custody witness
+        uses: actions/checkout@v4
+        with:
+          ref: 5e8dd4aa41f6d4b8b5d3abd0aa090b0eab223a19
+          fetch-depth: 1
+
+      - name: Reconstruct and verify governed V15 donor
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find carrier-v4 -maxdepth 1 -type f -name '*.bin' | wc -l)" -eq 89
+          find carrier-v4 -maxdepth 1 -type f -name '*.bin' -printf '%f\n' | LC_ALL=C sort > /tmp/fragments.txt
+          : > VERA_V15_PACKAGE_ICON_256.PNG
+          while IFS= read -r f; do
+            cat "carrier-v4/$f" >> VERA_V15_PACKAGE_ICON_256.PNG
+          done < /tmp/fragments.txt
+          test "$(wc -c < VERA_V15_PACKAGE_ICON_256.PNG)" -eq 62827
+          echo "0bbab931e7ed5836917dee72b80fe68295ee8182aa08bc0a00250bcb11f442d5  VERA_V15_PACKAGE_ICON_256.PNG" | sha256sum -c -
+
+      - name: Upload exact custody artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vera-v15-custody
+          path: |
+            VERA_V15_PACKAGE_ICON_256.PNG
+            carrier-v4/
+          if-no-files-found: error
+          retention-days: 1
