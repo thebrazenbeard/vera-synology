@@ -1,0 +1,205 @@
+name: SPK DS216 readiness qualification v1
+
+on:
+  push:
+    branches:
+      - controller/spk-ds216-readiness-qualification-v1
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    if: github.ref == 'refs/heads/controller/spk-ds216-readiness-qualification-v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact published V15 predecessor
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 37d1437f293537efe6bdbe8029da6e6888dccdba
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Materialize isolated DS216 readiness qualification candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "37d1437f293537efe6bdbe8029da6e6888dccdba"
+          git config user.name "BT2 qualification runner"
+          git config user.email "bt2-qualification@users.noreply.github.com"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          src_path = Path("payload/bin/veramesh_start_readiness.py")
+          test_path = Path("tests/test_start_readiness.py")
+          src = src_path.read_text()
+          tests = test_path.read_text()
+
+          old = 'ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V2"'
+          new = 'ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V3_DS216_QUALIFICATION_CANDIDATE"'
+          assert src.count(old) == 1, src.count(old)
+          src = src.replace(old, new)
+
+          old = (
+              '    "deadline_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
+              '    "poll_interval_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
+              '    "probe_timeout_cap_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
+              '    "transient_stage_errno_allowlist": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",'
+          )
+          new = (
+              '    "deadline_ns": 15_000_000_000,\n'
+              '    "poll_interval_ns": 100_000_000,\n'
+              '    "probe_timeout_cap_ns": 1_000_000_000,\n'
+              '    "transient_stage_errno_allowlist": [],\n'
+              '    "qualification_status": "CANDIDATE_REQUIRES_DS216_TARGET_EVIDENCE",'
+          )
+          assert src.count(old) == 1, src.count(old)
+          src = src.replace(old, new)
+
+          old = (
+              '# Deliberately unbound in this source-only successor. A later DS216 qualification\n'
+              '# must materialize a versioned integer-nanosecond policy and rebind the artifact/reviews.\n'
+              'TARGET_POLICY: ReadinessPolicy | None = None'
+          )
+          new = (
+              '# Isolated DS216 qualification candidate. These conservative values are test inputs,\n'
+              '# not production authority; target evidence must qualify or supersede them before promotion.\n'
+              'TARGET_POLICY: ReadinessPolicy | None = ReadinessPolicy(\n'
+              '    deadline_ns=15_000_000_000,\n'
+              '    poll_interval_ns=100_000_000,\n'
+              '    probe_timeout_cap_ns=1_000_000_000,\n'
+              '    transient_stage_errnos=frozenset(),\n'
+              ').validate()'
+          )
+          assert src.count(old) == 1, src.count(old)
+          src = src.replace(old, new)
+
+          old_test = (
+              '    def test_algorithm_profile_declares_integer_unbound_inputs(self):\n'
+              '        profile = self.mod.ALGORITHM_PROFILE\n'
+              '        self.assertEqual("MONOTONIC_NS_INTEGER", profile["clock"])\n'
+              '        self.assertEqual("TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND", profile["deadline_ns"])\n'
+              '        self.assertEqual(\n'
+              '            "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
+              '            profile["transient_stage_errno_allowlist"],\n'
+              '        )\n'
+              '        self.assertRegex(self.mod.ALGORITHM_PROFILE_SHA256, r"^[0-9a-f]{64}$")\n'
+          )
+          new_test = (
+              '    def test_algorithm_profile_binds_isolated_ds216_candidate_inputs(self):\n'
+              '        profile = self.mod.ALGORITHM_PROFILE\n'
+              '        self.assertEqual(\n'
+              '            "VERA_MESH_START_READINESS_ALGORITHM_V3_DS216_QUALIFICATION_CANDIDATE",\n'
+              '            self.mod.ALGORITHM_PROFILE_ID,\n'
+              '        )\n'
+              '        self.assertEqual("MONOTONIC_NS_INTEGER", profile["clock"])\n'
+              '        self.assertEqual(15_000_000_000, profile["deadline_ns"])\n'
+              '        self.assertEqual(100_000_000, profile["poll_interval_ns"])\n'
+              '        self.assertEqual(1_000_000_000, profile["probe_timeout_cap_ns"])\n'
+              '        self.assertEqual([], profile["transient_stage_errno_allowlist"])\n'
+              '        self.assertEqual(\n'
+              '            "CANDIDATE_REQUIRES_DS216_TARGET_EVIDENCE",\n'
+              '            profile["qualification_status"],\n'
+              '        )\n'
+              '        policy = self.mod.TARGET_POLICY\n'
+              '        self.assertIsNotNone(policy)\n'
+              '        self.assertEqual(15_000_000_000, policy.deadline_ns)\n'
+              '        self.assertEqual(100_000_000, policy.poll_interval_ns)\n'
+              '        self.assertEqual(1_000_000_000, policy.probe_timeout_cap_ns)\n'
+              '        self.assertEqual(frozenset(), policy.transient_stage_errnos)\n'
+              '        self.assertRegex(self.mod.ALGORITHM_PROFILE_SHA256, r"^[0-9a-f]{64}$")\n'
+          )
+          assert tests.count(old_test) == 1, tests.count(old_test)
+          tests = tests.replace(old_test, new_test)
+
+          src_path.write_text(src)
+          test_path.write_text(tests)
+          PY
+
+          git add payload/bin/veramesh_start_readiness.py tests/test_start_readiness.py
+          git commit -m "Materialize isolated DS216 readiness qualification candidate"
+          python3 tools/make_source_manifest.py
+          git add SOURCE_MANIFEST.json
+          git commit --amend --no-edit
+          python3 tools/make_source_manifest.py
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+
+      - name: Run exact candidate tests and deterministic package verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -v
+          python3 tools/make_source_manifest.py
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+          python3 tools/build_spk.py
+          cp dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk /tmp/first.spk
+          python3 tools/verify_spk.py /tmp/first.spk --manifest SOURCE_MANIFEST.json
+          python3 tools/build_spk.py
+          cmp /tmp/first.spk dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk
+          python3 tools/verify_spk.py dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk --manifest SOURCE_MANIFEST.json
+          test -z "$(git status --porcelain)"
+
+      - name: Freeze exact candidate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+
+          paths = [
+              "payload/bin/veramesh_start_readiness.py",
+              "tests/test_start_readiness.py",
+              "SOURCE_MANIFEST.json",
+          ]
+          out = {
+              "schema": "BT2_SPK_DS216_READINESS_QUALIFICATION_CANDIDATE_V1",
+              "status": "ISOLATED_TARGET_QUALIFICATION_CANDIDATE_NOT_PRODUCTION_AUTHORITY",
+              "base_commit": "37d1437f293537efe6bdbe8029da6e6888dccdba",
+              "candidate_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "candidate_tree": subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], text=True).strip(),
+              "changed_paths": paths,
+              "policy": {
+                  "deadline_ns": 15000000000,
+                  "poll_interval_ns": 100000000,
+                  "probe_timeout_cap_ns": 1000000000,
+                  "transient_stage_errno_allowlist": [],
+                  "authority": "CANDIDATE_REQUIRES_DS216_TARGET_EVIDENCE",
+              },
+              "files": [],
+          }
+          for p in paths:
+              b = Path(p).read_bytes()
+              blob = subprocess.check_output(["git", "rev-parse", f"HEAD:{p}"], text=True).strip()
+              out["files"].append({
+                  "path": p,
+                  "bytes": len(b),
+                  "sha256": hashlib.sha256(b).hexdigest(),
+                  "git_blob": blob,
+              })
+          spk = Path("dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk").read_bytes()
+          out["spk"] = {
+              "path": "dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk",
+              "bytes": len(spk),
+              "sha256": hashlib.sha256(spk).hexdigest(),
+          }
+          encoded = json.dumps(out, sort_keys=True, separators=(",", ":")).encode()
+          Path("DS216_READINESS_QUALIFICATION_EVIDENCE.json").write_bytes(encoded + b"\n")
+          print(encoded.decode())
+          PY
+
+      - name: Upload isolated qualification artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: VeraMesh-DS216-readiness-qualification-v1
+          path: |
+            dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk
+            DS216_READINESS_QUALIFICATION_EVIDENCE.json
+            payload/bin/veramesh_start_readiness.py
+            tests/test_start_readiness.py
+            SOURCE_MANIFEST.json
+          if-no-files-found: error
+          compression-level: 0
