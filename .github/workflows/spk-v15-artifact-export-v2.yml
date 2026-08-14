@@ -1,0 +1,38 @@
+name: SPK V15 exact artifact export v2
+
+on:
+  create:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.ref == 'refs/heads/controller/spk-v15-artifact-export-v2'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact published V15 repair commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 37d1437f293537efe6bdbe8029da6e6888dccdba
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Reverify and build exact V15 SPK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "37d1437f293537efe6bdbe8029da6e6888dccdba"
+          python3 -m unittest discover -s tests -v
+          python3 tools/build_spk.py
+          python3 tools/verify_spk.py dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk --manifest SOURCE_MANIFEST.json
+          actual="$(sha256sum dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk | awk '{print $1}')"
+          test "$actual" = "8c633875d0ad6c462d17f90c9d33991fec65229eab52930a7c01a1eb97450b7d"
+          printf 'SPK_SHA256=%s\n' "$actual"
+      - name: Upload exact verified SPK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: VeraMesh-V15-37d1437-exact
+          path: dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk
+          if-no-files-found: error
+          compression-level: 0
