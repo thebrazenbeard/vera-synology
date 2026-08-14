@@ -1,0 +1,52 @@
+name: SPK V15 publisher v14
+
+on:
+  create:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: ${{ github.event.ref_type == 'branch' && startsWith(github.event.ref, 'controller/spk-v15-publish-activation-') && github.run_attempt == 1 }}
+    permissions:
+      actions: read
+      contents: write
+    environment: bt2-synology-v15-publish
+    concurrency:
+      group: spk-v15-publish-repair-ds216-target-first-spk-v2
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact activation event SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Checkout exact custody witness
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e8dd4aa41f6d4b8b5d3abd0aa090b0eab223a19
+          path: custody
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact repair base without persisted credential
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c5935b4de032dbe0d02737ee03d1f36216a6d1c5
+          path: repair
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Consume one-shot activation then publish exact V15 candidate
+        shell: bash
+        env:
+          GH_PUSH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash controller/tools/spk-v15-controller.sh publish

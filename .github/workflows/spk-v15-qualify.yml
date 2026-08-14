@@ -1,0 +1,43 @@
+name: SPK V15 qualifier v14
+
+on:
+  create:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    if: ${{ github.event.ref_type == 'branch' && github.event.ref == 'controller/spk-v15-qualify-v1' && github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact controller event SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact custody witness
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e8dd4aa41f6d4b8b5d3abd0aa090b0eab223a19
+          path: custody
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout exact repair base
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c5935b4de032dbe0d02737ee03d1f36216a6d1c5
+          path: repair
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Qualify exact V15 candidate read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash controller/tools/spk-v15-controller.sh qualify
