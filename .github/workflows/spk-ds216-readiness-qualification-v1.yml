@@ -13,6 +13,8 @@ jobs:
     if: github.ref == 'refs/heads/controller/spk-ds216-readiness-qualification-v1'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Checkout exact published V15 predecessor
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -36,33 +38,40 @@ jobs:
           src = src_path.read_text()
           tests = test_path.read_text()
 
-          old = 'ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V2"'
-          new = 'ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V3_DS216_QUALIFICATION_CANDIDATE"'
-          assert src.count(old) == 1, src.count(old)
-          src = src.replace(old, new)
+          def replace_once(text: str, old: str, new: str) -> str:
+              assert text.count(old) == 1, (old, text.count(old))
+              return text.replace(old, new)
 
-          old = (
+          src = replace_once(
+              src,
+              'import socket\nimport stat\nimport sys\nimport time\n',
+              'import socket\nimport stat\nimport subprocess\nimport sys\nimport time\n',
+          )
+
+          src = replace_once(
+              src,
+              'ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V2"',
+              'ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V3_DS216_QUALIFICATION_CANDIDATE"',
+          )
+
+          src = replace_once(
+              src,
               '    "deadline_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
               '    "poll_interval_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
               '    "probe_timeout_cap_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",\n'
-              '    "transient_stage_errno_allowlist": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",'
-          )
-          new = (
+              '    "transient_stage_errno_allowlist": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",',
               '    "deadline_ns": 15_000_000_000,\n'
               '    "poll_interval_ns": 100_000_000,\n'
               '    "probe_timeout_cap_ns": 1_000_000_000,\n'
               '    "transient_stage_errno_allowlist": [],\n'
-              '    "qualification_status": "CANDIDATE_REQUIRES_DS216_TARGET_EVIDENCE",'
+              '    "qualification_status": "CANDIDATE_REQUIRES_DS216_TARGET_EVIDENCE",',
           )
-          assert src.count(old) == 1, src.count(old)
-          src = src.replace(old, new)
 
-          old = (
+          src = replace_once(
+              src,
               '# Deliberately unbound in this source-only successor. A later DS216 qualification\n'
               '# must materialize a versioned integer-nanosecond policy and rebind the artifact/reviews.\n'
-              'TARGET_POLICY: ReadinessPolicy | None = None'
-          )
-          new = (
+              'TARGET_POLICY: ReadinessPolicy | None = None',
               '# Isolated DS216 qualification candidate. These conservative values are test inputs,\n'
               '# not production authority; target evidence must qualify or supersede them before promotion.\n'
               'TARGET_POLICY: ReadinessPolicy | None = ReadinessPolicy(\n'
@@ -70,10 +79,148 @@ jobs:
               '    poll_interval_ns=100_000_000,\n'
               '    probe_timeout_cap_ns=1_000_000_000,\n'
               '    transient_stage_errnos=frozenset(),\n'
-              ').validate()'
+              ').validate()',
           )
-          assert src.count(old) == 1, src.count(old)
-          src = src.replace(old, new)
+
+          src = replace_once(
+              src,
+              'def _unknown(api, state_path, starting) -> int:\n'
+              '    try:\n'
+              '        api._best_effort_unknown(state_path, starting)\n'
+              '    except Exception:\n'
+              '        pass\n'
+              '    return 4\n',
+              'def _unknown(api, state_path, starting) -> int:\n'
+              '    try:\n'
+              '        api._best_effort_unknown(state_path, starting)\n'
+              '    except Exception:\n'
+              '        pass\n'
+              '    return 4\n\n\n'
+              'def _unknown_with_readback(api, state_path, starting) -> int:\n'
+              '    # Manager Start is non-idempotent. An exception, timeout, or late return is\n'
+              '    # an ambiguous effect: persist UNKNOWN, inspect durable state once, and never\n'
+              '    # replay Start automatically. Readback is reconciliation evidence only.\n'
+              '    try:\n'
+              '        api._best_effort_unknown(state_path, starting)\n'
+              '    except Exception:\n'
+              '        pass\n'
+              '    try:\n'
+              '        api.read_lifecycle_state(state_path)\n'
+              '    except Exception:\n'
+              '        pass\n'
+              '    return 4\n\n\n'
+              'def _manager_start_bounded(api, timeout_budget_ns: int) -> int:\n'
+              '    if isinstance(timeout_budget_ns, bool) or not isinstance(timeout_budget_ns, int) or timeout_budget_ns <= 0:\n'
+              '        return 255\n'
+              '    seconds = timeout_budget_ns / NS_PER_SECOND\n'
+              '    timeout = math.nextafter(seconds, 0.0)\n'
+              '    if timeout <= 0.0:\n'
+              '        timeout = seconds\n'
+              '    try:\n'
+              '        proc = subprocess.run(\n'
+              '            [api.CTL, "start", api.UNIT],\n'
+              '            stdout=subprocess.DEVNULL,\n'
+              '            stderr=subprocess.DEVNULL,\n'
+              '            check=False,\n'
+              '            timeout=timeout,\n'
+              '        )\n'
+              '    except (OSError, subprocess.TimeoutExpired):\n'
+              '        return 255\n'
+              '    return proc.returncode\n',
+          )
+
+          src = replace_once(
+              src,
+              '    manager_start: Callable[[], int],\n',
+              '    manager_start: Callable[[int], int],\n',
+          )
+
+          src = replace_once(
+              src,
+              '            try:\n'
+              '                manager_rc = manager_start()\n'
+              '            except Exception:\n'
+              '                manager_rc = -1\n'
+              '            if manager_rc != 0:\n'
+              '                return _unknown(api, state_path, starting)\n\n'
+              '            try:\n'
+              '                started_at_ns = monotonic_ns()\n'
+              '            except Exception:\n'
+              '                return _unknown(api, state_path, starting)\n'
+              '            if isinstance(started_at_ns, bool) or not isinstance(started_at_ns, int):\n'
+              '                return _unknown(api, state_path, starting)\n'
+              '            deadline_at_ns = started_at_ns + policy.deadline_ns\n'
+              '            if deadline_at_ns <= started_at_ns:\n'
+              '                return _unknown(api, state_path, starting)\n',
+              '            # One parent deadline starts immediately after durable STARTING and\n'
+              '            # charges the single manager attempt plus the readiness probe window.\n'
+              '            try:\n'
+              '                started_at_ns = monotonic_ns()\n'
+              '            except Exception:\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            if isinstance(started_at_ns, bool) or not isinstance(started_at_ns, int):\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            deadline_at_ns = started_at_ns + policy.deadline_ns\n'
+              '            if deadline_at_ns <= started_at_ns:\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n\n'
+              '            try:\n'
+              '                before_manager_ns = monotonic_ns()\n'
+              '            except Exception:\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            if isinstance(before_manager_ns, bool) or not isinstance(before_manager_ns, int):\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            manager_budget_ns = deadline_at_ns - before_manager_ns\n'
+              '            if manager_budget_ns <= 0:\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            try:\n'
+              '                manager_rc = manager_start(manager_budget_ns)\n'
+              '            except Exception:\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            try:\n'
+              '                manager_completed_ns = monotonic_ns()\n'
+              '            except Exception:\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n'
+              '            if (\n'
+              '                isinstance(manager_completed_ns, bool)\n'
+              '                or not isinstance(manager_completed_ns, int)\n'
+              '                or manager_completed_ns >= deadline_at_ns\n'
+              '                or manager_rc != 0\n'
+              '            ):\n'
+              '                return _unknown_with_readback(api, state_path, starting)\n',
+          )
+
+          src = replace_once(
+              src,
+              '    manager_start = manager_start or (lambda: api._manager_call("start"))\n',
+              '    manager_start = manager_start or (lambda budget_ns: _manager_start_bounded(api, budget_ns))\n',
+          )
+
+          tests = replace_once(
+              tests,
+              '        self.manager_calls = 0\n        self.clock = ManualClockNs()\n\n    def manager(self):\n'
+              '        self.assertGreater(self.api.lock_entries, 0, "writer lock must span manager start")\n'
+              '        self.manager_calls += 1\n'
+              '        return 0\n',
+              '        self.manager_calls = 0\n        self.manager_budgets = []\n        self.clock = ManualClockNs()\n\n    def manager(self, timeout_budget_ns):\n'
+              '        self.assertGreater(self.api.lock_entries, 0, "writer lock must span manager start")\n'
+              '        self.assertIsInstance(timeout_budget_ns, int)\n'
+              '        self.assertGreater(timeout_budget_ns, 0)\n'
+              '        self.manager_calls += 1\n'
+              '        self.manager_budgets.append(timeout_budget_ns)\n'
+              '        return 0\n',
+          )
+
+          tests = replace_once(
+              tests,
+              '        def bad_manager():\n            return 1\n',
+              '        def bad_manager(timeout_budget_ns):\n            self.assertGreater(timeout_budget_ns, 0)\n            return 1\n',
+          )
+
+          tests = replace_once(
+              tests,
+              '        rc = self.mod.runtime_start(api=self.api, manager_start=lambda: calls.append(1) or 0)\n',
+              '        rc = self.mod.runtime_start(api=self.api, manager_start=lambda budget_ns: calls.append(budget_ns) or 0)\n',
+          )
 
           old_test = (
               '    def test_algorithm_profile_declares_integer_unbound_inputs(self):\n'
@@ -108,10 +255,60 @@ jobs:
               '        self.assertEqual(100_000_000, policy.poll_interval_ns)\n'
               '        self.assertEqual(1_000_000_000, policy.probe_timeout_cap_ns)\n'
               '        self.assertEqual(frozenset(), policy.transient_stage_errnos)\n'
-              '        self.assertRegex(self.mod.ALGORITHM_PROFILE_SHA256, r"^[0-9a-f]{64}$")\n'
+              '        self.assertRegex(self.mod.ALGORITHM_PROFILE_SHA256, r"^[0-9a-f]{64}$")\n\n'
+              '    def test_manager_interval_is_charged_to_parent_deadline_and_not_replayed(self):\n'
+              '        probe_calls = 0\n'
+              '        def slow_manager(timeout_budget_ns):\n'
+              '            self.manager_calls += 1\n'
+              '            self.manager_budgets.append(timeout_budget_ns)\n'
+              '            self.clock.advance(timeout_budget_ns)\n'
+              '            return 0\n'
+              '        def probe(timeout_ns, policy):\n'
+              '            nonlocal probe_calls\n'
+              '            probe_calls += 1\n'
+              '            return self.mod.ReadinessObservation.absent()\n'
+              '        rc = self.run_start(\n'
+              '            probe,\n'
+              '            self.policy(deadline_ns=100, poll_ns=1, probe_cap_ns=100),\n'
+              '            manager=slow_manager,\n'
+              '        )\n'
+              '        self.assertEqual(4, rc)\n'
+              '        self.assertEqual(1, self.manager_calls)\n'
+              '        self.assertEqual([100], self.manager_budgets)\n'
+              '        self.assertEqual(0, probe_calls)\n'
+              '        self.assertEqual("UNKNOWN", self.api.state["lifecycle_state"])\n\n'
+              '    def test_ambiguous_manager_exception_is_unknown_readback_no_replay(self):\n'
+              '        calls = 0\n'
+              '        reads_before = 1\n'
+              '        original_read = self.api.read_lifecycle_state\n'
+              '        read_count = 0\n'
+              '        def counted_read(path):\n'
+              '            nonlocal read_count\n'
+              '            read_count += 1\n'
+              '            return original_read(path)\n'
+              '        self.api.read_lifecycle_state = counted_read\n'
+              '        def ambiguous(timeout_budget_ns):\n'
+              '            nonlocal calls\n'
+              '            calls += 1\n'
+              '            raise TimeoutError("ambiguous manager effect")\n'
+              '        rc = self.run_start(\n'
+              '            lambda timeout_ns, policy: self.mod.ReadinessObservation.absent(),\n'
+              '            manager=ambiguous,\n'
+              '        )\n'
+              '        self.assertEqual(4, rc)\n'
+              '        self.assertEqual(1, calls)\n'
+              '        self.assertGreaterEqual(read_count, reads_before + 1)\n'
+              '        self.assertEqual("UNKNOWN", self.api.state["lifecycle_state"])\n\n'
+              '    def test_default_manager_call_carries_positive_bounded_timeout(self):\n'
+              '        api = type("ManagerApi", (), {"CTL": "/manager", "UNIT": "unit.service"})()\n'
+              '        proc = type("Proc", (), {"returncode": 0})()\n'
+              '        with mock.patch.object(self.mod.subprocess, "run", return_value=proc) as run:\n'
+              '            self.assertEqual(0, self.mod._manager_start_bounded(api, 1_000_000_000))\n'
+              '        timeout = run.call_args.kwargs["timeout"]\n'
+              '        self.assertGreater(timeout, 0.0)\n'
+              '        self.assertLessEqual(timeout, 1.0)\n'
           )
-          assert tests.count(old_test) == 1, tests.count(old_test)
-          tests = tests.replace(old_test, new_test)
+          tests = replace_once(tests, old_test, new_test)
 
           src_path.write_text(src)
           test_path.write_text(tests)
@@ -123,6 +320,24 @@ jobs:
           git add SOURCE_MANIFEST.json
           git commit --amend --no-edit
           python3 tools/make_source_manifest.py
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
+
+      - name: Assert bytecode-free tool import and strict clean tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tools/__pycache__
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path("tools/build_spk.py")
+          spec = importlib.util.spec_from_file_location("build_spk_cleanliness_regression", path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          spec.loader.exec_module(module)
+          PY
+          test ! -e tools/__pycache__
           git diff --exit-code
           test -z "$(git status --porcelain)"
 
