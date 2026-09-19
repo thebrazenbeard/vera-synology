@@ -7,9 +7,7 @@ CONFIG=$VAR/edge-config.json
 "$PY" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" initialize "$STATE"
 if [ ! -e "$CONFIG" ]; then
   umask 077
-  cat > "$CONFIG.new" <<'EOF'
-{"connect_timeout_s":5.0,"idle_timeout_s":300.0,"listen_host":"127.0.0.1","listen_port":17445,"max_connections":32,"schema":"VERA_MESH_EDGE_CONFIG_V1","target_host":"lappy.tail86ea75.ts.net","target_port":17444}
-EOF
+  printf '%s\n' '{"connect_timeout_s":5.0,"idle_timeout_s":300.0,"listen_host":"127.0.0.1","listen_port":17445,"max_connections":32,"schema":"VERA_MESH_EDGE_CONFIG_V1","target_host":"lappy.tail86ea75.ts.net","target_port":17444}' > "$CONFIG.new"
   chown VeraMesh:VeraMesh "$CONFIG.new"
   chmod 600 "$CONFIG.new"
   mv "$CONFIG.new" "$CONFIG"

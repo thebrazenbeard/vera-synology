@@ -34,6 +34,8 @@ class SpkSuccessorContractTests(unittest.TestCase):
         self.assertIn('edge-config.json', script)
         self.assertIn('lappy.tail86ea75.ts.net', script)
         self.assertIn('chmod 600', script)
+        self.assertIn("printf '%s\\n'", script)
+        self.assertNotIn('<<', script, 'DSM postinst must not use heredoc syntax')
 
     def test_postuninst_retires_lifecycle_only_for_uninstall_and_never_deletes_durable_state(self):
         script = (ROOT / "spk" / "scripts" / "postuninst").read_text(encoding="utf-8")
