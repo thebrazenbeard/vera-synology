@@ -103,5 +103,48 @@ class EdgeProxyTests(unittest.TestCase):
         thread.join(2)
         self.assertTrue(done.wait(2))
 
+    def test_backpressure_never_reads_past_remaining_capacity(self):
+        original_cap=edge.MAX_BUFFER_BYTES
+        edge.MAX_BUFFER_BYTES=8192
+        payload=b"x"*32768
+        target=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        target.bind(("127.0.0.1",0))
+        target.listen(1)
+        port=target.getsockname()[1]
+        done=threading.Event()
+        def echo():
+            conn,_=target.accept()
+            received=bytearray()
+            with conn:
+                while len(received)<len(payload):
+                    chunk=conn.recv(4096)
+                    if not chunk:
+                        break
+                    received.extend(chunk)
+                conn.sendall(received)
+            target.close()
+            done.set()
+        threading.Thread(target=echo,daemon=True).start()
+        client_side,edge_side=socket.socketpair()
+        stop=threading.Event()
+        thread=threading.Thread(target=edge._proxy_connection,args=(edge_side,self.config(port),stop),daemon=True)
+        try:
+            thread.start()
+            client_side.settimeout(5)
+            client_side.sendall(payload)
+            client_side.shutdown(socket.SHUT_WR)
+            echoed=bytearray()
+            while len(echoed)<len(payload):
+                chunk=client_side.recv(4096)
+                if not chunk:
+                    break
+                echoed.extend(chunk)
+            self.assertEqual(payload,bytes(echoed))
+            self.assertTrue(done.wait(2))
+        finally:
+            edge.MAX_BUFFER_BYTES=original_cap
+            client_side.close()
+            thread.join(2)
+
 if __name__=="__main__":
     unittest.main()

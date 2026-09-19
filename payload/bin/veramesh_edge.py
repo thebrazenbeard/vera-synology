@@ -210,8 +210,11 @@ def _proxy_connection(client: socket.socket, config: dict, stop: threading.Event
 
             for src in readable:
                 dst=peers[src]
+                remaining=MAX_BUFFER_BYTES-len(pending[dst])
+                if remaining <= 0:
+                    continue
                 try:
-                    data=src.recv(BUFFER_SIZE)
+                    data=src.recv(min(BUFFER_SIZE,remaining))
                 except BlockingIOError:
                     continue
                 if data:
