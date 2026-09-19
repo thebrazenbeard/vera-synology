@@ -19,7 +19,7 @@ from typing import Callable, Iterator, NamedTuple
 SCHEMA = "VERA_MESH_PACKAGE_LIFECYCLE_STATE_V2"
 PROFILE_ID = "VERA_MESH_FIRST_SLICE_LIFECYCLE_PROFILE_V1"
 SERIALIZATION_CANDIDATE = "PYTHON_FCNTL_FLOCK_TARGET_QUALIFICATION_REQUIRED"
-PACKAGE_VERSION = "0.0.1-0002"
+PACKAGE_VERSION = "0.1.0-0016"
 INSTALLATION_STATES = {"CURRENT", "RETIRED"}
 ALLOWED_STATES = {"STOPPED", "STARTING", "RUNNING", "STOPPING", "UNKNOWN"}
 STOPPED_PROVENANCE = {"POSTINSTALL_NOT_STARTED", "AUTHORIZED_STOP"}
@@ -47,13 +47,16 @@ SOCKET_TIMEOUT_SECONDS = 1.0
 MAX_RESPONSE = 4096
 
 STATUS_BASE = {
-    "schema": "VERA_MESH_SCAFFOLD_STATUS_V1",
+    "schema": "VERA_MESH_EDGE_STATUS_V1",
     "package_runtime": "RUNNING",
-    "mesh_semantic_state": "BLOCKED",
-    "reason": "BLOCKED_MESH_NOT_IMPLEMENTED",
+    "mesh_semantic_state": "READY",
+    "reason": "LIVE_EDGE_PROXY_READY_DURABLE_RELAY_NOT_IMPLEMENTED",
     "pairing_implemented": False,
-    "tcp_mesh_listener": False,
-    "mesh_delivery_implemented": False,
+    "tcp_mesh_listener": True,
+    "mesh_delivery_implemented": True,
+    "edge_proxy_implemented": True,
+    "durable_relay_implemented": False,
+    "end_to_end_veraport_auth_preserved": True,
 }
 
 FIRST_SLICE_ACCEPTANCE_FINDINGS = [

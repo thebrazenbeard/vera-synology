@@ -30,12 +30,25 @@ class SpkSuccessorContractTests(unittest.TestCase):
         lifecycle = script.index('veramesh_lifecycle.py" postinstall')
         self.assertLess(semantic, lifecycle)
         self.assertIn('${SYNOPKG_PKG_STATUS:-}', script)
+        self.assertNotIn(chr(92) + '${SYNOPKG_PKG_STATUS:-}', script, 'escaped package status is invalid')
+        self.assertIn('edge-config.json', script)
+        self.assertIn('100.88.50.35', script)
+        self.assertNotIn('lappy.tail86ea75.ts.net', script)
+        self.assertIn('chmod 600', script)
+        self.assertNotIn('chown ', script)
+        self.assertIn("printf '%s\\n'", script)
+        self.assertNotIn('<<', script, 'DSM postinst must not use heredoc syntax')
 
-    def test_postuninst_retires_lifecycle_only_for_uninstall_and_never_deletes_durable_state(self):
-        script = (ROOT / "spk" / "scripts" / "postuninst").read_text(encoding="utf-8")
+    def test_preuninst_retires_lifecycle_before_payload_removal(self):
+        script = (ROOT / "spk" / "scripts" / "preuninst").read_text(encoding="utf-8")
         self.assertIn('SYNOPKG_PKG_STATUS', script)
         self.assertIn('UNINSTALL', script)
         self.assertIn('veramesh_lifecycle.py" retire-uninstall', script)
+
+    def test_postuninst_never_executes_removed_payload_or_deletes_durable_state(self):
+        script = (ROOT / "spk" / "scripts" / "postuninst").read_text(encoding="utf-8")
+        self.assertNotIn('veramesh_lifecycle.py', script)
+        self.assertNotIn('SYNOPKG_PKGDEST', script)
         for token in ('rm ', 'rm\t', 'unlink', 'rmdir'):
             self.assertNotIn(token, script)
 

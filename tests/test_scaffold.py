@@ -31,7 +31,7 @@ state_mod = load_module("veramesh_state", ROOT / "payload" / "bin" / "veramesh_s
 sys.modules["veramesh_state"] = state_mod
 lifecycle_mod = load_module("veramesh_lifecycle", ROOT / "payload" / "bin" / "veramesh_lifecycle.py")
 sys.modules["veramesh_lifecycle"] = lifecycle_mod
-scaffold_mod = load_module("veramesh_scaffold", ROOT / "payload" / "bin" / "veramesh_scaffold.py")
+scaffold_mod = load_module("veramesh_edge_contract", ROOT / "payload" / "bin" / "veramesh_edge.py")
 
 
 class SourceContractTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class SourceContractTests(unittest.TestCase):
             'spk/conf/systemd/pkguser-veramesh.service','spk/scripts/preinst',
             'spk/scripts/postinst','spk/scripts/preuninst','spk/scripts/postuninst',
             'spk/scripts/preupgrade','spk/scripts/postupgrade','spk/scripts/start-stop-status',
-            'payload/bin/veramesh_state.py','payload/bin/veramesh_scaffold.py',
+            'payload/bin/veramesh_state.py','payload/bin/veramesh_edge.py',
             'payload/bin/veramesh_lifecycle.py','payload/ui/config','payload/ui/index.html',
             'docs/TOOLKIT_QUALIFICATION.md',
         ]
@@ -52,9 +52,9 @@ class SourceContractTests(unittest.TestCase):
     def test_info_has_required_dsm7_fields_and_scaffold_identity(self):
         info = (ROOT / 'spk/INFO').read_text()
         for token in [
-            'package="VeraMesh"','version="0.0.1-0002"','os_min_ver="7.2-72806"',
+            'package="VeraMesh"','version="0.1.0-0016"','os_min_ver="7.2-72806"',
             'description=','arch="armada38x"','maintainer=','dsmuidir="ui"',
-            'dsmappname="com.vera.MeshScaffold"','precheckstartstop="yes"',
+            'dsmappname="com.vera.MeshEdge"','precheckstartstop="yes"',
         ]:
             self.assertIn(token, info)
 
@@ -71,22 +71,22 @@ class SourceContractTests(unittest.TestCase):
         self.assertNotIn('webstation', deps.lower())
         self.assertNotIn('php', deps.lower())
 
-    def test_ui_is_admin_default_and_explicitly_blocked(self):
+    def test_ui_is_admin_default_and_explicit_about_edge_scope(self):
         config = json.loads((ROOT / 'payload/ui/config').read_text())
-        app = config['.url']['com.vera.MeshScaffold']
+        app = config['.url']['com.vera.MeshEdge']
         self.assertNotIn('allUsers', app)
         html = (ROOT / 'payload/ui/index.html').read_text()
-        self.assertIn('BLOCKED_MESH_NOT_IMPLEMENTED', html)
-        for state in ['UNPAIRED_READY','READY','DEGRADED','BLOCKED']:
-            self.assertIn(state, html)
+        self.assertIn('LIVE_EDGE_PROXY_READY_DURABLE_RELAY_NOT_IMPLEMENTED', html)
+        self.assertIn('Durable relay', html)
 
-    def test_placeholder_service_has_no_tcp_or_subprocess_surface(self):
-        source = (ROOT / 'payload/bin/veramesh_scaffold.py').read_text()
+    def test_edge_service_is_loopback_transparent_and_has_no_subprocess_surface(self):
+        source = (ROOT / 'payload/bin/veramesh_edge.py').read_text()
         self.assertIn('socket.AF_UNIX', source)
-        self.assertNotIn('socket.AF_INET', source)
+        self.assertIn('socket.AF_INET', source)
+        self.assertIn('127.0.0.1', source)
         self.assertNotIn('subprocess', source)
-        self.assertIn('{"op": "status"}', source)
         self.assertIn('UNSUPPORTED_OPERATION', source)
+        self.assertIn('durable_relay_implemented', source)
 
     def test_shell_scripts_parse_and_do_not_generate_identity(self):
         for script in sorted((ROOT / 'spk/scripts').iterdir()):
@@ -139,12 +139,11 @@ class StateTests(unittest.TestCase):
                 state_mod.initialize(path)
             self.assertFalse((real_parent / "scaffold-state.json").exists())
 
-    def test_verify_rejects_nonblocked_or_mesh_claims(self):
+    def test_verify_rejects_mutated_edge_semantic_claims(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / 'state.json'
             bad = dict(state_mod.DEFAULT_STATE)
-            bad['semantic_state'] = 'READY'
-            bad['mesh_implemented'] = True
+            bad['durable_relay_implemented'] = True
             path.write_text(json.dumps(bad))
             os.chmod(path, 0o600)
             with self.assertRaises(ValueError):
@@ -159,14 +158,14 @@ class ControlSocketTests(unittest.TestCase):
             real_run.mkdir(mode=0o700)
             link_run = base / "run"
             link_run.symlink_to(real_run, target_is_directory=True)
-            old_run, old_socket = scaffold_mod.RUN_DIR, scaffold_mod.SOCKET_PATH
+            old_run, old_socket = scaffold_mod.RUN_DIR, scaffold_mod.CONTROL_SOCKET
             scaffold_mod.RUN_DIR = link_run
-            scaffold_mod.SOCKET_PATH = link_run / "control.sock"
+            scaffold_mod.CONTROL_SOCKET = link_run / "control.sock"
             try:
                 with self.assertRaisesRegex(RuntimeError, "run directory"):
-                    scaffold_mod._prepare_socket_path()
+                    scaffold_mod._prepare_control_socket()
             finally:
-                scaffold_mod.RUN_DIR, scaffold_mod.SOCKET_PATH = old_run, old_socket
+                scaffold_mod.RUN_DIR, scaffold_mod.CONTROL_SOCKET = old_run, old_socket
 
 
 class BuildAndVerifyTests(unittest.TestCase):
@@ -219,7 +218,7 @@ class BuildAndVerifyTests(unittest.TestCase):
             with tarfile.open(fileobj=gz, mode="w", format=tarfile.USTAR_FORMAT) as tf:
                 for name, data in sorted({
                     "bin/veramesh_state.py": b"x",
-                    "bin/veramesh_scaffold.py": b"x",
+                    "bin/veramesh_edge.py": b"x",
                     "bin/__pycache__/junk.pyc": b"x",
                     "ui/config": b"{}",
                     "ui/index.html": b"x",
@@ -230,7 +229,7 @@ class BuildAndVerifyTests(unittest.TestCase):
                     tf.addfile(ti, io.BytesIO(data))
         spk_raw = io.BytesIO()
         outer_files = {
-            "INFO": b'package="VeraMesh"\nversion="0.0.1-0002"\nos_min_ver="7.2-72806"\narch="armada38x"\ndsmuidir="ui"\ndsmappname="com.vera.MeshScaffold"\n',
+            "INFO": b'package="VeraMesh"\nversion="0.1.0-0016"\nos_min_ver="7.2-72806"\narch="armada38x"\ndsmuidir="ui"\ndsmappname="com.vera.MeshEdge"\n',
             "package.tgz": package_raw.getvalue(),
             "conf/PKG_DEPS": b"[python311]\n",
             "conf/privilege": b'{"defaults":{"run-as":"package"}}',
@@ -269,9 +268,8 @@ class BuildAndVerifyTests(unittest.TestCase):
 
     def test_qualification_doc_keeps_device_effects_open(self):
         doc = (ROOT / 'docs/TOOLKIT_QUALIFICATION.md').read_text()
-        self.assertIn('DEVICE_TOOLKIT_EXECUTION_NOT_RUN', doc)
-        self.assertIn('BLOCKED_MESH_NOT_IMPLEMENTED', doc)
-        self.assertIn('separately authorized', doc)
+        self.assertIn('DS216 V16 live-edge qualification boundary', doc)
+        self.assertIn('Durable relay remains explicitly NOT_IMPLEMENTED', doc)
 
 
 if __name__ == '__main__':

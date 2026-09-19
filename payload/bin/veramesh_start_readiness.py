@@ -7,13 +7,14 @@ import math
 import secrets
 import socket
 import stat
+import subprocess
 import sys
 import time
 from enum import Enum
 from typing import Callable, NamedTuple
 
 
-ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V2"
+ALGORITHM_PROFILE_ID = "VERA_MESH_START_READINESS_ALGORITHM_V3_DS216_EDGE_V16"
 ALGORITHM_PROFILE = {
     "schema": ALGORITHM_PROFILE_ID,
     "manager_start_count": "EXACTLY_ONCE_AFTER_DURABLE_STARTING",
@@ -31,10 +32,11 @@ ALGORITHM_PROFILE = {
         "UNQUALIFIED_TRANSPORT_ERROR",
         "DEADLINE_EXPIRED",
     ],
-    "deadline_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",
-    "poll_interval_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",
-    "probe_timeout_cap_ns": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",
-    "transient_stage_errno_allowlist": "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",
+    "deadline_ns": 15_000_000_000,
+    "poll_interval_ns": 100_000_000,
+    "probe_timeout_cap_ns": 1_000_000_000,
+    "transient_stage_errno_allowlist": [],
+    "qualification_status": "DS216_EDGE_V16_BOUND",
     "cutoff_boundary": "STRICT_OBSERVED_AT_NS_LT_DEADLINE_AT_NS",
     "probe_boundary": "PRE_LSTAT_THROUGH_EOF_FINALITY_ONE_ABSOLUTE_DEADLINE",
     "package_center_status": "LOCK_FREE_RC4_WHILE_STARTING",
@@ -108,9 +110,12 @@ class ReadinessPolicy(NamedTuple):
         return self
 
 
-# Deliberately unbound in this source-only successor. A later DS216 qualification
-# must materialize a versioned integer-nanosecond policy and rebind the artifact/reviews.
-TARGET_POLICY: ReadinessPolicy | None = None
+TARGET_POLICY: ReadinessPolicy | None = ReadinessPolicy(
+    deadline_ns=15_000_000_000,
+    poll_interval_ns=100_000_000,
+    probe_timeout_cap_ns=1_000_000_000,
+    transient_stage_errnos=frozenset(),
+).validate()
 
 
 def _load_lifecycle():
@@ -125,6 +130,36 @@ def _unknown(api, state_path, starting) -> int:
         pass
     return 4
 
+def _unknown_with_readback(api, state_path, starting) -> int:
+    try:
+        api._best_effort_unknown(state_path, starting)
+    except Exception:
+        pass
+    try:
+        api.read_lifecycle_state(state_path)
+    except Exception:
+        pass
+    return 4
+
+def _manager_start_bounded(api, timeout_budget_ns: int) -> int:
+    if isinstance(timeout_budget_ns, bool) or not isinstance(timeout_budget_ns, int) or timeout_budget_ns <= 0:
+        return 255
+    seconds = timeout_budget_ns / NS_PER_SECOND
+    timeout = math.nextafter(seconds, 0.0)
+    if timeout <= 0.0:
+        timeout = seconds
+    try:
+        proc = subprocess.run(
+            [api.CTL, "start", api.UNIT],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 255
+    return proc.returncode
+
 
 def _deadline_expired(deadline_at_ns: int, monotonic_ns: Callable[[], int]) -> bool:
     try:
@@ -137,7 +172,7 @@ def _deadline_expired(deadline_at_ns: int, monotonic_ns: Callable[[], int]) -> b
 def start_transition_bounded(
     state_path,
     lock_path,
-    manager_start: Callable[[], int],
+    manager_start: Callable[[int], int],
     probe: Callable[[int, ReadinessPolicy], ReadinessObservation],
     policy: ReadinessPolicy,
     *,
@@ -170,21 +205,39 @@ def start_transition_bounded(
                 return 4
 
             try:
-                manager_rc = manager_start()
-            except Exception:
-                manager_rc = -1
-            if manager_rc != 0:
-                return _unknown(api, state_path, starting)
-
-            try:
                 started_at_ns = monotonic_ns()
             except Exception:
-                return _unknown(api, state_path, starting)
+                return _unknown_with_readback(api, state_path, starting)
             if isinstance(started_at_ns, bool) or not isinstance(started_at_ns, int):
-                return _unknown(api, state_path, starting)
+                return _unknown_with_readback(api, state_path, starting)
             deadline_at_ns = started_at_ns + policy.deadline_ns
             if deadline_at_ns <= started_at_ns:
-                return _unknown(api, state_path, starting)
+                return _unknown_with_readback(api, state_path, starting)
+
+            try:
+                before_manager_ns = monotonic_ns()
+            except Exception:
+                return _unknown_with_readback(api, state_path, starting)
+            if isinstance(before_manager_ns, bool) or not isinstance(before_manager_ns, int):
+                return _unknown_with_readback(api, state_path, starting)
+            manager_budget_ns = deadline_at_ns - before_manager_ns
+            if manager_budget_ns <= 0:
+                return _unknown_with_readback(api, state_path, starting)
+            try:
+                manager_rc = manager_start(manager_budget_ns)
+            except Exception:
+                return _unknown_with_readback(api, state_path, starting)
+            try:
+                manager_completed_ns = monotonic_ns()
+            except Exception:
+                return _unknown_with_readback(api, state_path, starting)
+            if (
+                isinstance(manager_completed_ns, bool)
+                or not isinstance(manager_completed_ns, int)
+                or manager_completed_ns >= deadline_at_ns
+                or manager_rc != 0
+            ):
+                return _unknown_with_readback(api, state_path, starting)
 
             while True:
                 try:
@@ -393,7 +446,7 @@ def runtime_start(*, api=None, manager_start=None) -> int:
     policy = TARGET_POLICY
     if policy is None:
         return 4
-    manager_start = manager_start or (lambda: api._manager_call("start"))
+    manager_start = manager_start or (lambda budget_ns: _manager_start_bounded(api, budget_ns))
     return start_transition_bounded(
         api.STATE_PATH,
         api.LOCK_PATH,

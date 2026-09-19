@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/mesh-first-install-spk-v1
+      - work/veramesh-edge-v16-20260919
   workflow_dispatch:
 
 permissions:
@@ -15,15 +16,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout exact event SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: work
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Assert exact event SHA
+        working-directory: work
         shell: bash
         run: |
           set -euo pipefail
-          git init work
-          cd work
-          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
-          git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Run deterministic scaffold validation
         working-directory: work
         shell: bash
@@ -38,11 +41,11 @@ jobs:
           python3 -m compileall -q payload tools tests
           for f in spk/scripts/*; do sh -n "$f"; done
           python3 tools/build_spk.py
-          python3 tools/verify_spk.py dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk --manifest SOURCE_MANIFEST.json
+          python3 tools/verify_spk.py dist/VeraMesh-0.1.0-0016-live-edge.spk --manifest SOURCE_MANIFEST.json
       - name: Upload verified SPK
         uses: actions/upload-artifact@v4
         with:
           name: veramesh-spk-${{ github.sha }}
-          path: work/dist/VeraMesh-0.0.1-0002-reconstructed-scaffold.spk
+          path: work/dist/VeraMesh-0.1.0-0016-live-edge.spk
           if-no-files-found: error
           compression-level: 0

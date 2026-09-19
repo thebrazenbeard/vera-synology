@@ -185,8 +185,10 @@ class StartReadinessContractTests(unittest.TestCase):
         self.manager_calls = 0
         self.clock = ManualClockNs()
 
-    def manager(self):
+    def manager(self, timeout_budget_ns):
         self.assertGreater(self.api.lock_entries, 0, "writer lock must span manager start")
+        self.assertIsInstance(timeout_budget_ns, int)
+        self.assertGreater(timeout_budget_ns, 0)
         self.manager_calls += 1
         return 0
 
@@ -381,7 +383,8 @@ class StartReadinessContractTests(unittest.TestCase):
     def test_manager_failure_does_not_probe(self):
         probe_calls = 0
 
-        def bad_manager():
+        def bad_manager(timeout_budget_ns):
+            self.assertGreater(timeout_budget_ns, 0)
             return 1
 
         def probe(timeout, policy):
@@ -396,18 +399,20 @@ class StartReadinessContractTests(unittest.TestCase):
     def test_unbound_runtime_profile_fails_before_manager_effect(self):
         calls = []
         self.mod.TARGET_POLICY = None
-        rc = self.mod.runtime_start(api=self.api, manager_start=lambda: calls.append(1) or 0)
+        rc = self.mod.runtime_start(api=self.api, manager_start=lambda budget_ns: calls.append(budget_ns) or 0)
         self.assertEqual(4, rc)
         self.assertEqual([], calls)
 
-    def test_algorithm_profile_declares_integer_unbound_inputs(self):
+    def test_algorithm_profile_binds_ds216_v16_inputs(self):
         profile = self.mod.ALGORITHM_PROFILE
+        self.assertEqual("VERA_MESH_START_READINESS_ALGORITHM_V3_DS216_EDGE_V16", self.mod.ALGORITHM_PROFILE_ID)
         self.assertEqual("MONOTONIC_NS_INTEGER", profile["clock"])
-        self.assertEqual("TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND", profile["deadline_ns"])
-        self.assertEqual(
-            "TARGET_QUALIFIED_PROFILE_INPUT_UNBOUND",
-            profile["transient_stage_errno_allowlist"],
-        )
+        self.assertEqual(15_000_000_000, profile["deadline_ns"])
+        self.assertEqual(100_000_000, profile["poll_interval_ns"])
+        self.assertEqual(1_000_000_000, profile["probe_timeout_cap_ns"])
+        self.assertEqual([], profile["transient_stage_errno_allowlist"])
+        self.assertEqual("DS216_EDGE_V16_BOUND", profile["qualification_status"])
+        self.assertIsNotNone(self.mod.TARGET_POLICY)
         self.assertRegex(self.mod.ALGORITHM_PROFILE_SHA256, r"^[0-9a-f]{64}$")
 
     def _probe_with_fake(self, path, fake_socket, *, budget_ns=100, transients=frozenset()):
