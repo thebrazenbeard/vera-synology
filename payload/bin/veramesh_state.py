@@ -85,6 +85,17 @@ def _archive_legacy_file(src,dst,parent_stat):
     os.replace(src,dst)
     return True
 
+def _validate_existing_legacy_archive(archive,parent_stat):
+    scaffold=archive/"scaffold-state.json"
+    try:
+        data,st=_read_regular_bytes_nofollow(scaffold)
+    except FileNotFoundError as exc:
+        raise ValueError("legacy archive missing exact scaffold predecessor") from exc
+    if st.st_uid!=parent_stat.st_uid or st.st_gid!=parent_stat.st_gid:
+        raise ValueError("archived scaffold ownership mismatch")
+    if data!=_canonical_bytes(LEGACY_SCAFFOLD_STATE_V1):
+        raise ValueError("archived scaffold predecessor bytes mismatch")
+
 def _write_legacy_receipt(archive):
     entries=[]
     for name in ("lifecycle.lock","lifecycle-state.json","scaffold-state.json"):
@@ -112,10 +123,8 @@ def _migrate_exact_legacy(path,parent_stat):
     except FileNotFoundError:
         data=None
     if data is not None:
-        try: value=json.loads(data.decode("utf-8"))
-        except Exception: return False
-        if value==DEFAULT_STATE: return False
-        if value!=LEGACY_SCAFFOLD_STATE_V1: return False
+        if data==_canonical_bytes(DEFAULT_STATE): return False
+        if data!=_canonical_bytes(LEGACY_SCAFFOLD_STATE_V1): return False
         if st.st_uid!=parent_stat.st_uid or st.st_gid!=parent_stat.st_gid:
             raise ValueError("legacy scaffold ownership mismatch")
         legacy_present=True
@@ -123,9 +132,13 @@ def _migrate_exact_legacy(path,parent_stat):
         return False
     if (path.parent/"edge-config.json").exists() or (path.parent/"edge-config.json").is_symlink():
         raise ValueError("mixed-generation edge config blocks legacy migration")
+    archive_preexisting=archive.exists()
     _ensure_private_archive(archive,parent_stat)
+    if archive_preexisting:
+        _validate_existing_legacy_archive(archive,parent_stat)
     for name in ("lifecycle.lock","lifecycle-state.json","scaffold-state.json"):
         _archive_legacy_file(path.parent/name,archive/name,parent_stat)
+    _validate_existing_legacy_archive(archive,parent_stat)
     _write_legacy_receipt(archive)
     _fsync_directory(archive)
     _fsync_directory(path.parent)
