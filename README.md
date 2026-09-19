@@ -1,9 +1,20 @@
-# Vera Mesh Synology Scaffold
+# VeraMesh Synology DS216 Live Edge V16
 
-Repository source for the first-install Synology DSM scaffold. This candidate packages a lower-privilege, DSM-native shell around a deliberately nonfunctional Mesh placeholder.
+V16 turns the prior DSM scaffold into a real, deliberately narrow VeraPort edge.
 
-Current semantic state: `BLOCKED_MESH_NOT_IMPLEMENTED`.
+The package runs as the DSM package user and binds a transparent TCP proxy only to loopback. Tailscale Serve is configured separately at deployment to provide tailnet-only ingress. The NAS does not terminate VeraPort TLS, does not hold VeraPort controller credentials, and does not authorize workstation operations.
 
-This source does **not** implement pairing, Mesh transport, a TCP listener, message delivery, reasoning, Chat/Contacts, Node/React/WebStation, certificate generation, or any NAS-side installation action. A running package process is not evidence that Mesh is ready.
+Current semantic state: LIVE_EDGE_PROXY_READY_DURABLE_RELAY_NOT_IMPLEMENTED.
 
-The prior local-only candidate recorded at BT2 event 2443 was ephemeral and is not byte-reconstructed here. This is a separately identified TDD reconstruction under assignment `BT2-WFS-FOUR-SPK-TOOLKIT-STRUCTURAL-QUALIFICATION-026` and writer lease event 2481.
+Implemented:
+- DSM-native lower-privilege Package Center lifecycle;
+- bounded DS216 readiness policy;
+- loopback-only live TCP edge proxy;
+- end-to-end VeraPort TLS/authentication preservation;
+- lifecycle-bound private Unix status socket.
+
+Not implemented:
+- durable store-and-forward relay;
+- NAS-side VeraPort credential termination;
+- public/LAN edge exposure;
+- autonomous pairing or authorization.

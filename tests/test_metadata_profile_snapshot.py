@@ -122,7 +122,7 @@ class ClosedMetadataProfileTests(unittest.TestCase):
 
     def test_systemd_alternate_execstart_is_rejected(self):
         hostile = (
-            b'[Unit]\nDescription=Vera Mesh first-install scaffold service\n\n'
+            b'[Unit]\nDescription=VeraMesh DS216 live edge proxy\n\n'
             b'[Service]\nType=simple\nExecStart=/bin/sh -c hostile\nRestart=always\nUMask=0000\n\n'
             b'[Install]\nWantedBy=default.target\n'
         )

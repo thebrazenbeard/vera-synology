@@ -27,7 +27,7 @@ class VerifierSuccessorProfileTests(unittest.TestCase):
         self.assertIn("bin/veramesh_lifecycle.py", verify_spk.REQUIRED_PAYLOAD)
 
     def test_successor_profile_identity_is_new_and_digest_bound(self):
-        self.assertEqual("SPK_FIRST_SLICE_STABLE_LIFECYCLE_PROFILE_V3", verify_spk.METADATA_PROFILE_ID)
+        self.assertEqual("SPK_DS216_LIVE_EDGE_V16_PROFILE_V1", verify_spk.METADATA_PROFILE_ID)
         digest = getattr(verify_spk, "SPK_PROFILE_SHA256", None)
         self.assertIsInstance(digest, str)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")

@@ -30,25 +30,25 @@ REQUIRED_OUTER = {
 REQUIRED_PAYLOAD = {
     "bin/veramesh_lifecycle.py",
     "bin/veramesh_state.py",
-    "bin/veramesh_scaffold.py",
+    "bin/veramesh_edge.py",
     "ui/config",
     "ui/index.html",
 }
 INFO_LINE = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)="([^"\r\n]*)"')
 INFO_EXPECTED = {
     "package": "VeraMesh",
-    "version": "0.0.1-0002",
+    "version": "0.1.0-0016",
     "os_min_ver": "7.2-72806",
-    "description": "Vera Mesh first-install scaffold; Mesh transport is not implemented in this candidate.",
+    "description": "VeraMesh DS216 live edge proxy; VeraPort authentication remains end-to-end; durable relay is not implemented.",
     "arch": "armada38x",
     "maintainer": "V.E.R.A. Build Team Two",
     "thirdparty": "yes",
     "precheckstartstop": "yes",
     "dsmuidir": "ui",
-    "dsmappname": "com.vera.MeshScaffold",
+    "dsmappname": "com.vera.MeshEdge",
 }
 PYTHON311_INTERPRETER = "/var/packages/python311/target/bin/python3.11"
-SCAFFOLD_PROGRAM = "/var/packages/VeraMesh/target/bin/veramesh_scaffold.py"
+EDGE_PROGRAM = "/var/packages/VeraMesh/target/bin/veramesh_edge.py"
 PRIVILEGE_EXPECTED = {
     "defaults": {"run-as": "package"},
     "username": "VeraMesh",
@@ -57,10 +57,10 @@ PRIVILEGE_EXPECTED = {
 RESOURCE_EXPECTED = {"systemd-user-unit": {}}
 PKG_DEPS_EXPECTED = {"python311": {"os_min_ver": "7.2-72806", "pkg_min_ver": "3.11"}}
 SYSTEMD_EXPECTED = {
-    "Unit": {"Description": "Vera Mesh first-install scaffold service"},
+    "Unit": {"Description": "VeraMesh DS216 live edge proxy"},
     "Service": {
         "Type": "simple",
-        "ExecStart": f"{PYTHON311_INTERPRETER} {SCAFFOLD_PROGRAM} serve",
+        "ExecStart": f"{PYTHON311_INTERPRETER} {EDGE_PROGRAM} serve",
         "Restart": "no",
         "UMask": "0077",
     },
@@ -68,7 +68,7 @@ SYSTEMD_EXPECTED = {
 }
 LIFECYCLE_PROFILE_ID = "VERA_MESH_FIRST_SLICE_LIFECYCLE_PROFILE_V1"
 LIFECYCLE_PROFILE_SHA256 = "3a33143546bb9796a1fd931b319941628bf7b40b1b82ac40738676836ea50046"
-METADATA_PROFILE_ID = "SPK_FIRST_SLICE_STABLE_LIFECYCLE_PROFILE_V3"
+METADATA_PROFILE_ID = "SPK_DS216_LIVE_EDGE_V16_PROFILE_V1"
 SPK_PROFILE_DESCRIPTOR = {
     "schema": METADATA_PROFILE_ID,
     "info": INFO_EXPECTED,

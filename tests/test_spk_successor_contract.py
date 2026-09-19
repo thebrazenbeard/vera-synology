@@ -30,6 +30,10 @@ class SpkSuccessorContractTests(unittest.TestCase):
         lifecycle = script.index('veramesh_lifecycle.py" postinstall')
         self.assertLess(semantic, lifecycle)
         self.assertIn('${SYNOPKG_PKG_STATUS:-}', script)
+        self.assertNotIn(chr(92) + '${SYNOPKG_PKG_STATUS:-}', script, 'escaped package status is invalid')
+        self.assertIn('edge-config.json', script)
+        self.assertIn('lappy.tail86ea75.ts.net', script)
+        self.assertIn('chmod 600', script)
 
     def test_postuninst_retires_lifecycle_only_for_uninstall_and_never_deletes_durable_state(self):
         script = (ROOT / "spk" / "scripts" / "postuninst").read_text(encoding="utf-8")

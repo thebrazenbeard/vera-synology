@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LIFECYCLE_PATH = ROOT / "payload" / "bin" / "veramesh_lifecycle.py"
-SCAFFOLD_PATH = ROOT / "payload" / "bin" / "veramesh_scaffold.py"
+SCAFFOLD_PATH = ROOT / "payload" / "bin" / "veramesh_edge.py"
 
 
 def load_module(name: str, path: Path):
@@ -37,12 +37,12 @@ if SCAFFOLD_PATH.is_file():
         @staticmethod
         def verify(_path):
             return {
-                "semantic_state": "BLOCKED",
-                "reason": "BLOCKED_MESH_NOT_IMPLEMENTED",
+                "semantic_state": "READY",
+                "reason": "LIVE_EDGE_PROXY_READY_DURABLE_RELAY_NOT_IMPLEMENTED",
             }
 
     sys.modules["veramesh_state"] = StateStub
-    scaffold = load_module("veramesh_scaffold", SCAFFOLD_PATH)
+    scaffold = load_module("veramesh_edge", SCAFFOLD_PATH)
 
     class ScaffoldLifecycleBindingTests(unittest.TestCase):
         INSTALL = "0123456789abcdef0123456789abcdef"
@@ -125,7 +125,9 @@ if SCAFFOLD_PATH.is_file():
             self.assertEqual(self.PROCESS, payload["process_instance_id"])
             self.assertEqual(lifecycle.PROFILE_ID, payload["lifecycle_profile_id"])
             self.assertEqual(lifecycle.PACKAGE_VERSION, payload["package_version"])
-            self.assertEqual("BLOCKED", payload["mesh_semantic_state"])
+            self.assertEqual("READY", payload["mesh_semantic_state"])
+            self.assertTrue(payload["edge_proxy_implemented"])
+            self.assertFalse(payload["durable_relay_implemented"])
 
         def test_exact_bound_status_payload_round_trips_through_oracle_parser(self):
             binding = lifecycle.capture_startup_binding(

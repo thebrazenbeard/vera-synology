@@ -23,7 +23,7 @@ state_mod = load_module("veramesh_state", ROOT / "payload" / "bin" / "veramesh_s
 sys.modules["veramesh_state"] = state_mod
 lifecycle_mod = load_module("veramesh_lifecycle", ROOT / "payload" / "bin" / "veramesh_lifecycle.py")
 sys.modules["veramesh_lifecycle"] = lifecycle_mod
-scaffold_mod = load_module("veramesh_scaffold_framing", ROOT / "payload" / "bin" / "veramesh_scaffold.py")
+edge_mod = load_module("veramesh_edge_framing", ROOT / "payload" / "bin" / "veramesh_edge.py")
 
 
 class ControlSocketFramingTests(unittest.TestCase):
@@ -40,7 +40,7 @@ class ControlSocketFramingTests(unittest.TestCase):
         thread = threading.Thread(target=send_fragments)
         thread.start()
         try:
-            data, error = scaffold_mod._read_request_bytes(reader)
+            data, error = edge_mod._read_request_bytes(reader)
         finally:
             reader.close()
             thread.join(timeout=1)
@@ -51,7 +51,7 @@ class ControlSocketFramingTests(unittest.TestCase):
         server_end, client_end = socket.socketpair()
         client_end.close()
         try:
-            sent = scaffold_mod._send_json_response(server_end, {"schema": "TEST"})
+            sent = edge_mod._send_json_response(server_end, {"schema": "TEST"})
         finally:
             server_end.close()
         self.assertFalse(sent)
@@ -60,7 +60,7 @@ class ControlSocketFramingTests(unittest.TestCase):
         class ResettingConn:
             def recv(self, _size):
                 raise ConnectionResetError("peer reset")
-        data, error = scaffold_mod._read_request_bytes(ResettingConn())
+        data, error = edge_mod._read_request_bytes(ResettingConn())
         self.assertIsNone(data)
         self.assertEqual("CLIENT_DISCONNECTED", error)
 
@@ -69,7 +69,7 @@ class ControlSocketFramingTests(unittest.TestCase):
         reader.settimeout(1)
         try:
             writer.sendall(b'{"op":"status"}\n{"op":"status"}\n')
-            data, error = scaffold_mod._read_request_bytes(reader)
+            data, error = edge_mod._read_request_bytes(reader)
         finally:
             reader.close()
             writer.close()

@@ -1,16 +1,17 @@
-# Synology toolkit and Package Center qualification boundary
+# DS216 V16 live-edge qualification boundary
 
-This repository can locally prove deterministic archive structure and source invariants. It cannot prove DSM accepts or executes the package.
+V16 is a live-edge successor to the earlier scaffold.
 
-Later separately authorized target/toolkit checks must bind the exact commit and built SPK digest, then verify:
+Local/source qualification must prove deterministic packaging, closed metadata, loopback-only listener policy, transparent byte forwarding, end-to-end VeraPort authentication preservation, and truthful non-claim of durable relay.
 
-1. Synology DSM 7.2 toolkit can deploy the intended target platform environment and parse the project/package inputs without structural errors.
-2. The generated SPK contains exactly one `INFO`, `package.tgz`, required `scripts/`, `conf/privilege`, package icons, and no duplicate archive member names.
-3. Package Center on the exact DS216/DSM build accepts the lower-privilege package and its `python311` dependency policy.
-4. `dsmuidir=ui` and `dsmappname=com.vera.MeshScaffold` produce an Open action and admin-visible DSM desktop entry as intended.
-5. The `systemd-user-unit` resource copies the package user unit, DSM start/stop effects operate as expected, and the package-owned lifecycle oracle returns truthful stable RUNNING/STOPPED/UNKNOWN semantics with exact responder binding.
-6. Fresh install creates restrictive durable scaffold state once. Restart preserves it. Upgrade refuses missing/corrupt predecessor state and never silently regenerates identity/trust material.
-7. Package process status and Mesh semantic state remain separate. A running scaffold must still show `BLOCKED_MESH_NOT_IMPLEMENTED`.
-8. No TCP listener, anonymous LAN admin service, WebStation, Node, React, Chat/Contacts, trust identity generation, pairing, or Mesh delivery exists in this candidate.
+Target qualification on the exact DS216/DSM 7.2.2 build must then prove:
+1. Package Center accepts the exact SPK and python311 dependency.
+2. Package starts/stops through DSM lifecycle with bounded readiness and exact responder binding.
+3. Edge configuration is private package-owned mode 0600.
+4. Data listener binds only to 127.0.0.1.
+5. Tailscale Serve exposes the edge tailnet-only, with Funnel/public exposure absent.
+6. A VeraPort controller can connect through DS216 edge to Lappy and complete an authenticated file round-trip.
+7. Direct Lappy path remains independent of the edge.
+8. Durable relay remains explicitly NOT_IMPLEMENTED.
 
-Until those device/toolkit checks run under separate authority, status remains `STRUCTURALLY_QUALIFIED_LOCALLY / DEVICE_TOOLKIT_EXECUTION_NOT_RUN`.
+Installation/deployment evidence is separate from source/build evidence.

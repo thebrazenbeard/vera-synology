@@ -1,10 +1,10 @@
 {
   ".url": {
-    "com.vera.MeshScaffold": {
+    "com.vera.MeshEdge": {
       "type": "url",
       "icon": "images/app_{0}.png",
-      "title": "Vera Mesh",
-      "desc": "First-install scaffold status",
+      "title": "Vera Mesh Edge",
+      "desc": "DS216 live edge proxy status",
       "url": "3rdparty/VeraMesh/index.html"
     }
   }

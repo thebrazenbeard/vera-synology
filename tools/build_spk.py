@@ -251,7 +251,7 @@ def main() -> int:
     expected_manifest = source_manifest_bytes(snapshot)
     if _committed_manifest_bytes() != expected_manifest:
         raise ValueError("committed SOURCE_MANIFEST.json does not match exact Git source snapshot")
-    out = ROOT / "dist" / "VeraMesh-0.0.1-0002-reconstructed-scaffold.spk"
+    out = ROOT / "dist" / "VeraMesh-0.1.0-0016-live-edge.spk"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(build_spk_bytes(snapshot))
     print(out)
