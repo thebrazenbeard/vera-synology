@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, os, stat, sys
+import hashlib, json, os, stat, sys
 from pathlib import Path
 
 SCHEMA="VERA_MESH_EDGE_STATE_V1"
 ALLOWED_STATES={"READY","DEGRADED","BLOCKED"}
+LEGACY_SCAFFOLD_STATE_V1={
+    "schema":"VERA_MESH_SCAFFOLD_STATE_V1",
+    "semantic_state":"BLOCKED",
+    "reason":"BLOCKED_MESH_NOT_IMPLEMENTED",
+    "mesh_implemented":False,
+    "pairing_implemented":False,
+    "tcp_mesh_listener":False,
+    "trust_identity_generated":False,
+    "mesh_delivery_implemented":False,
+}
 DEFAULT_STATE={
     "schema":SCHEMA,
     "semantic_state":"READY",
@@ -46,6 +56,81 @@ def _safe_remove_same_inode(path,st):
     if cur.st_dev!=st.st_dev or cur.st_ino!=st.st_ino or not stat.S_ISREG(cur.st_mode):
         raise ValueError("temporary state changed during recovery")
     path.unlink()
+
+def _legacy_archive_path(parent):
+    digest=hashlib.sha256(_canonical_bytes(LEGACY_SCAFFOLD_STATE_V1)).hexdigest()[:16]
+    return parent/(".legacy-scaffold-"+digest)
+
+def _ensure_private_archive(archive,parent_stat):
+    try: archive.mkdir(mode=0o700)
+    except FileExistsError: pass
+    st=archive.lstat()
+    if not stat.S_ISDIR(st.st_mode) or stat.S_IMODE(st.st_mode)!=0o700:
+        raise ValueError("legacy archive is not private directory")
+    if st.st_uid!=parent_stat.st_uid or st.st_gid!=parent_stat.st_gid:
+        raise ValueError("legacy archive ownership mismatch")
+    return st
+
+def _archive_legacy_file(src,dst,parent_stat):
+    try: st=src.lstat()
+    except FileNotFoundError: return False
+    if not stat.S_ISREG(st.st_mode):
+        raise ValueError("legacy predecessor path is not regular")
+    if stat.S_IMODE(st.st_mode)!=0o600:
+        raise ValueError("legacy predecessor mode must be 0600")
+    if st.st_uid!=parent_stat.st_uid or st.st_gid!=parent_stat.st_gid:
+        raise ValueError("legacy predecessor ownership mismatch")
+    if dst.exists() or dst.is_symlink():
+        raise ValueError("legacy archive destination collision")
+    os.replace(src,dst)
+    return True
+
+def _write_legacy_receipt(archive):
+    entries=[]
+    for name in ("lifecycle.lock","lifecycle-state.json","scaffold-state.json"):
+        p=archive/name
+        if not p.exists(): continue
+        data,st=_read_regular_bytes_nofollow(p)
+        entries.append({"path":name,"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()})
+    receipt={"schema":"VERA_MESH_LEGACY_MIGRATION_RECEIPT_V1","source":"VERA_MESH_SCAFFOLD_STATE_V1","files":entries}
+    data=_canonical_bytes(receipt)
+    out=archive/"MIGRATION_RECEIPT.json"
+    if out.exists():
+        existing,_=_read_regular_bytes_nofollow(out)
+        if existing!=data: raise ValueError("legacy migration receipt mismatch")
+        return
+    fd=os.open(out,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    try:
+        os.write(fd,data); os.fsync(fd)
+    finally: os.close(fd)
+
+def _migrate_exact_legacy(path,parent_stat):
+    archive=_legacy_archive_path(path.parent)
+    legacy_present=False
+    try:
+        data,st=_read_regular_bytes_nofollow(path)
+    except FileNotFoundError:
+        data=None
+    if data is not None:
+        try: value=json.loads(data.decode("utf-8"))
+        except Exception: return False
+        if value==DEFAULT_STATE: return False
+        if value!=LEGACY_SCAFFOLD_STATE_V1: return False
+        if st.st_uid!=parent_stat.st_uid or st.st_gid!=parent_stat.st_gid:
+            raise ValueError("legacy scaffold ownership mismatch")
+        legacy_present=True
+    if not legacy_present and not archive.exists():
+        return False
+    if (path.parent/"edge-config.json").exists() or (path.parent/"edge-config.json").is_symlink():
+        raise ValueError("mixed-generation edge config blocks legacy migration")
+    _ensure_private_archive(archive,parent_stat)
+    for name in ("lifecycle.lock","lifecycle-state.json","scaffold-state.json"):
+        _archive_legacy_file(path.parent/name,archive/name,parent_stat)
+    _write_legacy_receipt(archive)
+    _fsync_directory(archive)
+    _fsync_directory(path.parent)
+    return True
+
 def _recover_stale_temp(tmp,final,parent_stat):
     try: lst=tmp.lstat()
     except FileNotFoundError: return False
@@ -74,6 +159,7 @@ def initialize(path):
     if not stat.S_ISDIR(pst.st_mode): raise ValueError("state parent is not real directory")
     if stat.S_IMODE(pst.st_mode)&0o077:
         os.chmod(path.parent,0o700); pst=path.parent.lstat()
+    _migrate_exact_legacy(path,pst)
     if path.exists() or path.is_symlink(): return read_state(path)
     tmp=path.with_name(path.name+".new"); data=_canonical_bytes(DEFAULT_STATE)
     for attempt in range(2):
