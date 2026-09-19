@@ -144,6 +144,56 @@ class StaleTempRecoveryTests(unittest.TestCase):
             self.assertTrue(final.exists())
             self.assertFalse(state_mod._legacy_archive_path(final.parent).exists())
 
+    def test_semantically_equal_but_byte_different_legacy_state_is_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            final, _ = self._paths(td)
+            alternate = json.dumps(
+                state_mod.LEGACY_SCAFFOLD_STATE_V1,
+                sort_keys=False,
+                indent=2,
+            ).encode("utf-8") + b"\n"
+            self.assertNotEqual(
+                state_mod._canonical_bytes(state_mod.LEGACY_SCAFFOLD_STATE_V1),
+                alternate,
+            )
+            final.write_bytes(alternate)
+            os.chmod(final, 0o600)
+            before = final.read_bytes()
+            with self.assertRaisesRegex(ValueError, "state shape mismatch"):
+                state_mod.initialize(final)
+            self.assertEqual(before, final.read_bytes())
+            self.assertFalse(state_mod._legacy_archive_path(final.parent).exists())
+
+    def test_existing_archive_must_contain_exact_scaffold_predecessor(self):
+        with tempfile.TemporaryDirectory() as td:
+            final, _ = self._paths(td)
+            archive = state_mod._legacy_archive_path(final.parent)
+            archive.mkdir(mode=0o700)
+            archived = archive / "scaffold-state.json"
+            archived.write_bytes(b'{"schema":"NOT_THE_LEGACY_PREDECESSOR"}\n')
+            os.chmod(archived, 0o600)
+            with self.assertRaisesRegex(
+                ValueError,
+                "archived scaffold predecessor bytes mismatch",
+            ):
+                state_mod.initialize(final)
+            self.assertFalse(final.exists())
+
+    def test_exact_existing_archive_can_resume_interrupted_migration(self):
+        with tempfile.TemporaryDirectory() as td:
+            final, _ = self._paths(td)
+            archive = state_mod._legacy_archive_path(final.parent)
+            archive.mkdir(mode=0o700)
+            archived = archive / "scaffold-state.json"
+            archived.write_bytes(
+                state_mod._canonical_bytes(state_mod.LEGACY_SCAFFOLD_STATE_V1)
+            )
+            os.chmod(archived, 0o600)
+            result = state_mod.initialize(final)
+            self.assertEqual(state_mod.DEFAULT_STATE, result)
+            self.assertEqual(state_mod.DEFAULT_STATE, state_mod.read_state(final))
+            self.assertTrue((archive / "MIGRATION_RECEIPT.json").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
