@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/mesh-first-install-spk-v1
+      - work/veramesh-edge-v16-20260919
   workflow_dispatch:
 
 permissions:
