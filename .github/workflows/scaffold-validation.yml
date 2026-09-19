@@ -16,15 +16,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout exact event SHA
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          path: work
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Assert exact event SHA
+        working-directory: work
         shell: bash
         run: |
           set -euo pipefail
-          git init work
-          cd work
-          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
-          git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Run deterministic scaffold validation
         working-directory: work
         shell: bash
