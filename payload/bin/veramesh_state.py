@@ -49,7 +49,10 @@ def _safe_remove_same_inode(path,st):
 def _recover_stale_temp(tmp,final,parent_stat):
     try: lst=tmp.lstat()
     except FileNotFoundError: return False
-    if not stat.S_ISREG(lst.st_mode) or stat.S_IMODE(lst.st_mode)!=0o600: raise ValueError("invalid temporary state")
+    if not stat.S_ISREG(lst.st_mode):
+        raise ValueError("temporary state path is not a regular file")
+    if stat.S_IMODE(lst.st_mode)!=0o600:
+        raise ValueError("temporary state mode must be 0600")
     if lst.st_uid!=parent_stat.st_uid or lst.st_gid!=parent_stat.st_gid: raise ValueError("temporary state ownership mismatch")
     fd=os.open(tmp,os.O_RDWR|os.O_NOFOLLOW)
     try:
