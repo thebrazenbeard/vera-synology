@@ -52,7 +52,7 @@ class SourceContractTests(unittest.TestCase):
     def test_info_has_required_dsm7_fields_and_scaffold_identity(self):
         info = (ROOT / 'spk/INFO').read_text()
         for token in [
-            'package="VeraMesh"','version="0.1.0-0016"','os_min_ver="7.2-72806"',
+            'package="VeraMesh"','version="0.1.0-0017"','os_min_ver="7.2-72806"',
             'description=','arch="armada38x"','maintainer=','dsmuidir="ui"',
             'dsmappname="com.vera.MeshEdge"','precheckstartstop="yes"',
         ]:
@@ -229,7 +229,7 @@ class BuildAndVerifyTests(unittest.TestCase):
                     tf.addfile(ti, io.BytesIO(data))
         spk_raw = io.BytesIO()
         outer_files = {
-            "INFO": b'package="VeraMesh"\nversion="0.1.0-0016"\nos_min_ver="7.2-72806"\narch="armada38x"\ndsmuidir="ui"\ndsmappname="com.vera.MeshEdge"\n',
+            "INFO": b'package="VeraMesh"\nversion="0.1.0-0017"\nos_min_ver="7.2-72806"\narch="armada38x"\ndsmuidir="ui"\ndsmappname="com.vera.MeshEdge"\n',
             "package.tgz": package_raw.getvalue(),
             "conf/PKG_DEPS": b"[python311]\n",
             "conf/privilege": b'{"defaults":{"run-as":"package"}}',
