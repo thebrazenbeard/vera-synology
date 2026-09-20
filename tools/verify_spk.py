@@ -37,7 +37,7 @@ REQUIRED_PAYLOAD = {
 INFO_LINE = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)="([^"\r\n]*)"')
 INFO_EXPECTED = {
     "package": "VeraMesh",
-    "version": "0.1.0-0016",
+    "version": "0.1.0-0017",
     "os_min_ver": "7.2-72806",
     "description": "VeraMesh DS216 live edge proxy; VeraPort authentication remains end-to-end; durable relay is not implemented.",
     "arch": "armada38x",

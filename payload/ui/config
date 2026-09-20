@@ -5,7 +5,7 @@
       "icon": "images/app_{0}.png",
       "title": "Vera Mesh Edge",
       "desc": "DS216 live edge proxy status",
-      "url": "3rdparty/VeraMesh/index.html"
+      "url": "/webman/3rdparty/VeraMesh/index.html"
     }
   }
 }

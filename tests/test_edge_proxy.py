@@ -34,7 +34,7 @@ class EdgeProxyTests(unittest.TestCase):
     def test_status_truthfully_claims_proxy_not_durable_relay(self):
         edge._load_state=lambda: StateStub
         B=namedtuple("B","lifecycle_profile_id lifecycle_profile_sha256 package_version installation_incarnation_id start_generation start_transition_id process_instance_id")
-        b=B("p","a"*64,"0.1.0-0016","1"*32,2,"2"*32,"3"*32)
+        b=B("p","a"*64,"0.1.0-0017","1"*32,2,"2"*32,"3"*32)
         payload=edge.status_payload(b)
         self.assertTrue(payload["edge_proxy_implemented"])
         self.assertTrue(payload["mesh_delivery_implemented"])
