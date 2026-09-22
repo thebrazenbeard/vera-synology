@@ -26,8 +26,17 @@ class VerifierSuccessorProfileTests(unittest.TestCase):
         self.assertEqual("armada38x", verify_spk.INFO_EXPECTED.get("arch"))
         self.assertIn("bin/veramesh_lifecycle.py", verify_spk.REQUIRED_PAYLOAD)
 
-    def test_successor_profile_identity_is_new_and_digest_bound(self):
-        self.assertEqual("SPK_DS216_LIVE_EDGE_V16_PROFILE_V1", verify_spk.METADATA_PROFILE_ID)
+    def test_successor_profile_identity_tracks_package_generation_and_is_digest_bound(self):
+        version = verify_spk.INFO_EXPECTED["version"]
+        generation = int(version.rsplit("-", 1)[1])
+        self.assertEqual(
+            f"SPK_DS216_LIVE_EDGE_V{generation}_PROFILE_V1",
+            verify_spk.METADATA_PROFILE_ID,
+        )
+        self.assertEqual(
+            verify_spk.METADATA_PROFILE_ID,
+            verify_spk.SPK_PROFILE_DESCRIPTOR["schema"],
+        )
         digest = getattr(verify_spk, "SPK_PROFILE_SHA256", None)
         self.assertIsInstance(digest, str)
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
