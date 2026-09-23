@@ -33,6 +33,12 @@ class T(unittest.TestCase):
    self.assertEqual(1,files);self.assertTrue(digest);self.assertGreaterEqual(len(entries),2)
    (real/"bad").symlink_to(base/"elsewhere")
    with self.assertRaises(m.E):m.manifest(real)
+ def test_fresh_install_bootstrap_uses_real_synology_status(self):
+  s=(U/"spk/scripts/postinst").read_text()
+  self.assertIn('postinstall "${SYNOPKG_PKG_STATUS:-}"',s)
+  self.assertNotIn('postinstall "\\${SYNOPKG_PKG_STATUS:-}"',s)
+  self.assertIn('veramesh_state.py" initialize',s)
+  self.assertIn('veramesh_runtime_init.py',s)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()
