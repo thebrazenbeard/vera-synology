@@ -12,3 +12,5 @@ Version 0.2.0-0004 fixes fresh-install lifecycle bootstrap by passing DSM's real
 Version 0.2.0-0005 hardens reinstall recovery for DSM's persistent package var: INSTALL quarantines any prior modules.json without reading it and recreates safe edge-only activation state; UPGRADE remains fail-closed and preserves valid activation state.
 
 Version 0.2.0-0006 repairs the DSM broken-package upgrade path: UPGRADE can quarantine an unreadable persisted modules.json without reading it, recreate safe edge-only activation, and establish a fresh lifecycle incarnation when persistent lifecycle authority is validly RETIRED and the semantic control socket is absent. Corrupt-but-readable activation and non-retired lifecycle states remain fail-closed/preserved.
+
+Version 0.2.0-0007 adds supervisor-owned hot module reload. SIGHUP re-reads modules.json and starts/stops optional Relay/Gateway processes without stopping the VeraMesh package or Edge. VeraRelay adoption now uses this reload path for cutover and rollback.

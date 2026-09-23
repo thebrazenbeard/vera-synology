@@ -6,7 +6,7 @@ from pathlib import Path
 
 OLD="VeraRelay"; NEW="VeraMesh"
 OLDVAR=Path("/var/packages/VeraRelay/var"); ROOT=Path("/var/packages/VeraMesh")
-NEWVAR=ROOT/"var/relay"; MIG=ROOT/"var/migrations"; MOD=ROOT/"var/runtime/modules.json"
+NEWVAR=ROOT/"var/relay"; MIG=ROOT/"var/migrations"; MOD=ROOT/"var/runtime/modules.json"; SUPPID=ROOT/"var/runtime/supervisor.pid"; RSTATUS=ROOT/"var/runtime/status.json"
 SERVER=ROOT/"target/relay/src/server.js"; RP=17443; EP=17445; SCHEMA="VERAMESH_VERARELAY_ADOPTION_V1"
 class E(RuntimeError): pass
 
@@ -152,12 +152,39 @@ def copy(stamp):
   pid.unlink();removed=True
  return {"record_dir":str(rd),"source_link":str(OLDVAR),"source_resolved":str(src),"source_tree_sha256":d,"copy_tree_sha256_before_ephemeral_cleanup":d2,"files":nf,"bytes":nb,"stale_runtime_pid_removed":removed,"original_state_preserved":src.is_dir() and OLDVAR.exists()}
 
-def restart():
- if status(NEW)["running"]:
-  action("stop",NEW);waitpkg(NEW,False);waitport(EP,False)
- elif port(EP):
-  raise E("VeraMesh package is stopped but edge port remains open")
- action("start",NEW);waitpkg(NEW,True);waitport(EP,True)
+def supervisor_pid():
+ try:
+  raw=SUPPID.read_text().strip();pid=int(raw)
+ except Exception as x:raise E(f"invalid supervisor pid file: {x}") from x
+ if pid<=1:raise E("invalid supervisor pid")
+ try:cmd=Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\\x00",b" ").decode(errors="replace")
+ except Exception as x:raise E(f"cannot inspect supervisor pid {pid}: {x}") from x
+ if "veramesh_supervisor.py" not in cmd:raise E(f"pid {pid} is not VeraMesh supervisor")
+ return pid
+
+def runtime_status():
+ try:return json.loads(RSTATUS.read_text())
+ except Exception as x:raise E(f"runtime status unavailable: {x}") from x
+
+def reload_modules(expect_relay,t=30):
+ if not status(NEW)["running"]:raise E("VeraMesh package is not running")
+ if not port(EP):raise E("VeraMesh edge not listening before reload")
+ pid=supervisor_pid()
+ os.kill(pid,signal.SIGHUP)
+ end=time.monotonic()+t
+ while time.monotonic()<end:
+  if not status(NEW)["running"]:raise E("VeraMesh stopped during module reload")
+  if not port(EP):raise E("VeraMesh edge dropped during module reload")
+  try:
+   s=runtime_status();relay=s.get("modules",{}).get("relay",{})
+   if s.get("reload_error"):raise E("supervisor reload error: "+str(s["reload_error"]))
+   if relay.get("enabled") is expect_relay:
+    if expect_relay and relay.get("state")=="RUNNING" and port(RP):return
+    if not expect_relay and relay.get("state")=="DISABLED" and not port(RP):return
+  except E:raise
+  except Exception:pass
+  time.sleep(.25)
+ raise E(f"supervisor did not converge relay enabled={expect_relay}")
 
 def inspect():
  c=cfg()
@@ -176,7 +203,7 @@ def quarantine_copy(r):
 def rollback(was,r,why,unified_changed):
  r["rollback"]={"attempted":True,"reason":why,"unified_changed":unified_changed,"errors":[]}
  if unified_changed:
-  try:enable(False);restart();quarantine_copy(r)
+  try:enable(False);reload_modules(False);quarantine_copy(r)
   except Exception as x:r["rollback"]["errors"].append("restore unified: "+str(x))
  else:
   try:quarantine_copy(r)
@@ -203,7 +230,7 @@ def apply():
  try:
   action("stop",OLD);waitpkg(OLD,False);waitport(RP,False)
   r["state_copy"]=copy(stamp);preflight();r["unified_config_preflight"]="PASS"
-  enable(True);unified_changed=True;restart();waitport(RP,True);ha=health()
+  enable(True);unified_changed=True;reload_modules(True);ha=health()
   if status(OLD)["running"]:raise E("standalone Relay restarted unexpectedly")
   if not cfg()["modules"]["relay"]["enabled"]:raise E("unified Relay did not remain enabled")
   r.update({"status":"PASS","unified_relay_health":ha,"standalone_package_final":status(OLD),"unified_package_final":status(NEW),"edge_loopback":"PASS" if port(EP) else "FAIL","relay_loopback":"PASS" if port(RP) else "FAIL","standalone_state_preserved":OLDVAR.exists(),"unified_relay_enabled":True,"safe_to_uninstall_standalone_after_review":True})

@@ -21,6 +21,9 @@ class T(unittest.TestCase):
   self.assertIn("resolve_state_root(OLDVAR,True)",s)
   self.assertIn("owner=package_owner()",s)
   self.assertIn("if unified_changed:",s)
+  self.assertIn("reload_modules(True)",s)
+  self.assertIn("reload_modules(False)",s)
+  self.assertNotIn("action(\"stop\",NEW)",s)
  def test_synology_root_symlink_resolution(self):
   import importlib.util,tempfile
   spec=importlib.util.spec_from_file_location("adopter",U/"payload/bin/adopt-standalone-verarelay.py")
@@ -87,6 +90,13 @@ class T(unittest.TestCase):
   self.assertIn("After=network.target",unit)
   info=(U/"spk/INFO").read_text()
   self.assertNotIn("start_dep_services=",info)
+ def test_supervisor_hot_reload_contract(self):
+  s=(U/"payload/bin/veramesh_supervisor.py").read_text()
+  self.assertIn("signal.SIGHUP",s)
+  self.assertIn("supervisor.pid",s)
+  self.assertIn("set_enabled",s)
+  self.assertIn("apply_reload",s)
+  self.assertIn("reload_error",s)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()
