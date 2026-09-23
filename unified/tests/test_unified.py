@@ -6,6 +6,11 @@ class T(unittest.TestCase):
   b=json.loads((U/"component-bindings.json").read_text());self.assertEqual("159c9301d1d0b89e3fc2c03215690ba71ff45634",b["dsmctl"]["commit"])
  def test_sources(self):
   [py_compile.compile(str(U/p),doraise=True) for p in ("payload/bin/veramesh_supervisor.py","payload/bin/veramesh_runtime_init.py","tools/build_unified_spk.py","tools/verify_unified_spk.py")]
+ def test_relay_launcher_is_source_bound(self):
+  s=(U/"payload/bin/run-verarelay.sh").read_text()
+  self.assertIn("src/runtime.js",s)
+  self.assertIn("VERA_RELAY_VAR=/var/packages/VeraMesh/var/relay",s)
+  self.assertNotIn("/var/packages/VeraRelay/var",s)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()
