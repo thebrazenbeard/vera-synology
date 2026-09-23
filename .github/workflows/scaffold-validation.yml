@@ -1,6 +1,7 @@
 name: Scaffold validation
 
 on:
+  pull_request:
   push:
     branches:
       - feature/mesh-first-install-spk-v1
