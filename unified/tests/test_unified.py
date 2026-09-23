@@ -65,7 +65,7 @@ class T(unittest.TestCase):
    config=runtime/"modules.json";config.write_text('{"schema":"poison"}\n')
    with self.assertRaises(ValueError):m.initialize(var,"UPGRADE")
    self.assertEqual('{"schema":"poison"}\n',config.read_text())
- def test_synology_user_unit_matches_last_runtime-proven_shape(self):
+ def test_synology_user_unit_matches_last_runtime_proven_shape(self):
   unit=(U/"spk/conf/systemd/pkguser-veramesh.service").read_text()
   self.assertIn("After=network.target",unit)
   info=(U/"spk/INFO").read_text()
