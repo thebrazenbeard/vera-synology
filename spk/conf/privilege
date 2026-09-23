@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "VeraMesh",
+  "groupname": "VeraMesh"
+}

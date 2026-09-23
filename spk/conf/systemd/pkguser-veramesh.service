@@ -1,0 +1,11 @@
+[Unit]
+Description=VeraMesh DS216 live edge proxy
+
+[Service]
+Type=simple
+ExecStart=/var/packages/python311/target/bin/python3.11 /var/packages/VeraMesh/target/bin/veramesh_edge.py serve
+Restart=no
+UMask=0077
+
+[Install]
+WantedBy=default.target
