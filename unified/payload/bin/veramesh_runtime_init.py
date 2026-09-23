@@ -61,9 +61,10 @@ def initialize(var,status):
  recovery=None
  if status=="INSTALL" and (config.exists() or config.is_symlink()):
   q,st=quarantine_existing_config(config,runtime)
-  recovery={"schema":RECOVERY_SCHEMA,"reason":"INSTALL_RESETS_PERSISTED_MODULE_ACTIVATION","source":str(config),"quarantine":str(q),"source_uid":st.st_uid,"source_gid":st.st_gid,"source_mode":f"{stat.S_IMODE(st.st_mode):04o}","source_inode":st.st_ino}
-  write_json_new(runtime/"install-recovery.json",recovery)
-  if owner is not None:os.chown(runtime/"install-recovery.json",owner[0],owner[1])
+  receipt=Path(str(q)+".receipt.json")
+  recovery={"schema":RECOVERY_SCHEMA,"reason":"INSTALL_RESETS_PERSISTED_MODULE_ACTIVATION","source":str(config),"quarantine":str(q),"receipt":str(receipt),"source_uid":st.st_uid,"source_gid":st.st_gid,"source_mode":f"{stat.S_IMODE(st.st_mode):04o}","source_inode":st.st_ino}
+  write_json_new(receipt,recovery)
+  if owner is not None:os.chown(receipt,owner[0],owner[1])
 
  if config.exists():
   valid(json.loads(config.read_text()))
