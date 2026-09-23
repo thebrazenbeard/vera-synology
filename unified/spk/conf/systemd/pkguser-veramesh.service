@@ -1,0 +1,13 @@
+[Unit]
+Description=Vera Runtime Host
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/var/packages/python311/target/bin/python3.11 /var/packages/VeraMesh/target/bin/veramesh_supervisor.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=default.target
