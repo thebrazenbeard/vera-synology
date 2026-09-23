@@ -35,8 +35,8 @@ class T(unittest.TestCase):
    with self.assertRaises(m.E):m.manifest(real)
  def test_fresh_install_bootstrap_uses_real_synology_status(self):
   s=(U/"spk/scripts/postinst").read_text()
-  self.assertIn('postinstall "${SYNOPKG_PKG_STATUS:-}"',s)
-  self.assertNotIn('postinstall "\\${SYNOPKG_PKG_STATUS:-}"',s)
+  self.assertIn('STATUS="${SYNOPKG_PKG_STATUS:-INSTALL}"',s)
+  self.assertIn('postinstall "$STATUS"',s)
   self.assertIn('veramesh_state.py" initialize',s)
   self.assertIn('veramesh_runtime_init.py',s)
   self.assertIn('"$STATUS"',s)
