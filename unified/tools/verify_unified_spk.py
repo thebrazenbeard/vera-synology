@@ -15,7 +15,7 @@ def arm(b,n):
 def main():
  a=argparse.ArgumentParser();a.add_argument("spk");p=Path(a.parse_args().spk)
  with tarfile.open(p,"r:") as t:o,_=read(t)
- if 'version="0.2.0-0002"' not in o["INFO"].decode() or "veramesh_supervisor.py" not in o["conf/systemd/pkguser-veramesh.service"].decode():raise ValueError("outer contract")
+ if 'version="0.2.0-0003"' not in o["INFO"].decode() or "veramesh_supervisor.py" not in o["conf/systemd/pkguser-veramesh.service"].decode():raise ValueError("outer contract")
  with tarfile.open(fileobj=io.BytesIO(o["package.tgz"]),mode="r:gz") as t:q,m=read(t)
  req={"bin/veramesh_edge.py","bin/veramesh_supervisor.py","bin/veramesh_runtime_init.py","bin/veramesh-gateway","bin/dsmctl","bin/run-veramesh-gateway.sh","bin/run-verarelay.sh","bin/adopt-standalone-verarelay.py","relay/package.json","provenance/component-bindings.json","third_party/dsmctl-LICENSE"}
  if not req.issubset(q):raise ValueError("payload contract")

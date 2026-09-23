@@ -17,7 +17,19 @@ class T(unittest.TestCase):
   self.assertIn("source-manifest.json",s)
   self.assertIn("state copy verification failed",s)
   self.assertIn("safe_to_uninstall_standalone_after_review",s)
-  self.assertIn("enable(False)",s)
+  self.assertIn("enable(False)",s)\n  self.assertIn("resolve_state_root(OLDVAR,True)",s)\n  self.assertIn("owner=package_owner()",s)\n  self.assertIn("if unified_changed:",s)
+ def test_synology_root_symlink_resolution(self):
+  import importlib.util,tempfile
+  spec=importlib.util.spec_from_file_location("adopter",U/"payload/bin/adopt-standalone-verarelay.py")
+  m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  with tempfile.TemporaryDirectory() as td:
+   base=Path(td);real=base/"real";real.mkdir();(real/"state").mkdir();(real/"state"/"x").write_text("ok")
+   link=base/"var";link.symlink_to(real,target_is_directory=True)
+   self.assertEqual(real.resolve(),m.resolve_state_root(link,True))
+   entries,digest,files,bytes_=m.manifest(real)
+   self.assertEqual(1,files);self.assertTrue(digest);self.assertGreaterEqual(len(entries),2)
+   (real/"bad").symlink_to(base/"elsewhere")
+   with self.assertRaises(m.E):m.manifest(real)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()
