@@ -17,7 +17,10 @@ class T(unittest.TestCase):
   self.assertIn("source-manifest.json",s)
   self.assertIn("state copy verification failed",s)
   self.assertIn("safe_to_uninstall_standalone_after_review",s)
-  self.assertIn("enable(False)",s)\n  self.assertIn("resolve_state_root(OLDVAR,True)",s)\n  self.assertIn("owner=package_owner()",s)\n  self.assertIn("if unified_changed:",s)
+  self.assertIn("enable(False)",s)
+  self.assertIn("resolve_state_root(OLDVAR,True)",s)
+  self.assertIn("owner=package_owner()",s)
+  self.assertIn("if unified_changed:",s)
  def test_synology_root_symlink_resolution(self):
   import importlib.util,tempfile
   spec=importlib.util.spec_from_file_location("adopter",U/"payload/bin/adopt-standalone-verarelay.py")
