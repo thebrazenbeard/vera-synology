@@ -1,0 +1,11 @@
+{
+  ".url": {
+    "com.vera.MeshEdge": {
+      "type": "url",
+      "icon": "images/app_{0}.png",
+      "title": "Vera Mesh Edge",
+      "desc": "DS216 live edge proxy status",
+      "url": "/webman/3rdparty/VeraMesh/index.html"
+    }
+  }
+}
