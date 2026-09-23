@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT=Path("/var/packages/VeraMesh"); TARGET=ROOT/"target"; VAR=ROOT/"var"; RUNTIME=VAR/"runtime"
 CONFIG=RUNTIME/"modules.json"; STATUS=RUNTIME/"status.json"; PIDFILE=RUNTIME/"supervisor.pid"
 PY=Path("/var/packages/python311/target/bin/python3.11")
-STOP=False; RELOAD=False; RELOAD_ERROR=None
+STOP=False; RELOAD=False; RELOAD_ERROR=None; RELOAD_GENERATION=0
 
 def atomic(path,value):
  path.parent.mkdir(parents=True,exist_ok=True,mode=0o700); tmp=path.with_name("."+path.name+".new")
@@ -62,7 +62,7 @@ class M:
   return {"enabled":self.en,"required":self.req,"state":s,"pid":self.p.pid if self.p is not None and self.p.poll() is None else None,"restart_count":self.restarts,"last_exit":self.last}
 
 def status(ms):
- atomic(STATUS,{"schema":"VERAMESH_RUNTIME_STATUS_V1","observed_at_unix":int(time.time()),"supervisor_pid":os.getpid(),"reload_error":RELOAD_ERROR,"modules":{m.n:m.state() for m in ms},"utilities":{"dsmctl":{"bundled":(TARGET/"bin/dsmctl").is_file(),"daemon":False,"credentials_provisioned":False}},"network":{"edge_loopback":"127.0.0.1:17445","gateway_loopback":"127.0.0.1:17446","public_listener_created_by_package":False}})
+ atomic(STATUS,{"schema":"VERAMESH_RUNTIME_STATUS_V1","observed_at_unix":int(time.time()),"supervisor_pid":os.getpid(),"reload_generation":RELOAD_GENERATION,"reload_error":RELOAD_ERROR,"modules":{m.n:m.state() for m in ms},"utilities":{"dsmctl":{"bundled":(TARGET/"bin/dsmctl").is_file(),"daemon":False,"credentials_provisioned":False}},"network":{"edge_loopback":"127.0.0.1:17445","gateway_loopback":"127.0.0.1:17446","public_listener_created_by_package":False}})
 
 def sig_stop(*_):
  global STOP;STOP=True
@@ -78,7 +78,7 @@ def apply_reload(ms):
  RELOAD_ERROR=None
 
 def main():
- global RELOAD,RELOAD_ERROR
+ global RELOAD,RELOAD_ERROR,RELOAD_GENERATION
  c=cfg(); ms=[M("edge",[str(PY),str(TARGET/"bin/veramesh_edge.py"),"serve"],True,True),M("gateway",[str(TARGET/"bin/run-veramesh-gateway.sh")],False,c["gateway"]["enabled"]),M("relay",[str(TARGET/"bin/run-verarelay.sh")],False,c["relay"]["enabled"])]
  signal.signal(signal.SIGTERM,sig_stop);signal.signal(signal.SIGINT,sig_stop);signal.signal(signal.SIGHUP,sig_reload)
  write_pid()
@@ -90,6 +90,7 @@ def main():
     RELOAD=False
     try:apply_reload(ms)
     except Exception as x:RELOAD_ERROR=str(x)
+    finally:RELOAD_GENERATION+=1
    now=time.monotonic()
    for m in ms:
     r=m.poll()

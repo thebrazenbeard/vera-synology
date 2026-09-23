@@ -14,3 +14,5 @@ Version 0.2.0-0005 hardens reinstall recovery for DSM's persistent package var: 
 Version 0.2.0-0006 repairs the DSM broken-package upgrade path: UPGRADE can quarantine an unreadable persisted modules.json without reading it, recreate safe edge-only activation, and establish a fresh lifecycle incarnation when persistent lifecycle authority is validly RETIRED and the semantic control socket is absent. Corrupt-but-readable activation and non-retired lifecycle states remain fail-closed/preserved.
 
 Version 0.2.0-0007 adds supervisor-owned hot module reload. SIGHUP re-reads modules.json and starts/stops optional Relay/Gateway processes without stopping the VeraMesh package or Edge. VeraRelay adoption now uses this reload path for cutover and rollback.
+
+Version 0.2.0-0008 hardens Relay adoption qualification: fixes the missing signal import, binds SIGHUP completion to a monotonic supervisor reload generation, validates the exact supervisor process identity, requires pre/post Relay health and audit-chain continuity, and re-hashes the stopped standalone source state before declaring adoption safe for uninstall review.

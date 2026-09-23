@@ -23,6 +23,10 @@ class T(unittest.TestCase):
   self.assertIn("if unified_changed:",s)
   self.assertIn("reload_modules(True)",s)
   self.assertIn("reload_modules(False)",s)
+  self.assertIn("import argparse,grp,hashlib,json,os,pwd,shutil,signal,",s)
+  self.assertIn("verify_health_continuity",s)
+  self.assertIn("verify_source_preserved",s)
+  self.assertIn("reload_generation",s)
   self.assertNotIn("action(\"stop\",NEW)",s)
  def test_synology_root_symlink_resolution(self):
   import importlib.util,tempfile
@@ -97,6 +101,18 @@ class T(unittest.TestCase):
   self.assertIn("set_enabled",s)
   self.assertIn("apply_reload",s)
   self.assertIn("reload_error",s)
+  self.assertIn("RELOAD_GENERATION",s)
+  self.assertIn('"reload_generation":RELOAD_GENERATION',s)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()
+
+class AdoptionContinuityTests(unittest.TestCase):
+ def test_health_continuity_rejects_audit_change(self):
+  import importlib.util
+  spec=importlib.util.spec_from_file_location("adopt_continuity",U/"payload/bin/adopt-standalone-verarelay.py")
+  m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  base={"status":"ok","version":"0.3.0-0005","bindAddress":"127.0.0.1","port":17443,"publicListener":False,"applicationAuthentication":"ES256","nodeRole":"relay","protocolDomain":"VeraMesh","audit":{"ok":True,"head":"abc","records":3,"segments":["audit.jsonl"]}}
+  self.assertEqual("PASS",m.verify_health_continuity(base,dict(base))["status"])
+  changed=json.loads(json.dumps(base));changed["audit"]["head"]="def"
+  with self.assertRaises(m.E):m.verify_health_continuity(base,changed)
