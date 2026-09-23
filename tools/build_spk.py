@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATHS = ROOT / "SOURCE_PATHS.json"
 FIXED_MTIME = 0
-EXCLUDED_TRACKED = {"SOURCE_MANIFEST.json"}
+EXCLUDED_TRACKED = {\n    "SOURCE_MANIFEST.json",\n    "CLA.md",\n    "COMMERCIAL_LICENSE.md",\n    "CONTRIBUTING.md",\n    "LICENSE",\n    "NOTICE",\n}
 EXCLUDED_TOP = {".git", "dist"}
 
 
