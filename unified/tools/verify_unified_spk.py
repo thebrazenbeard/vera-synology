@@ -15,9 +15,9 @@ def arm(b,n):
 def main():
  a=argparse.ArgumentParser();a.add_argument("spk");p=Path(a.parse_args().spk)
  with tarfile.open(p,"r:") as t:o,_=read(t)
- if 'version="0.2.0-0001"' not in o["INFO"].decode() or "veramesh_supervisor.py" not in o["conf/systemd/pkguser-veramesh.service"].decode():raise ValueError("outer contract")
+ if 'version="0.2.0-0002"' not in o["INFO"].decode() or "veramesh_supervisor.py" not in o["conf/systemd/pkguser-veramesh.service"].decode():raise ValueError("outer contract")
  with tarfile.open(fileobj=io.BytesIO(o["package.tgz"]),mode="r:gz") as t:q,m=read(t)
- req={"bin/veramesh_edge.py","bin/veramesh_supervisor.py","bin/veramesh_runtime_init.py","bin/veramesh-gateway","bin/dsmctl","bin/run-veramesh-gateway.sh","bin/run-verarelay.sh","relay/package.json","provenance/component-bindings.json","third_party/dsmctl-LICENSE"}
+ req={"bin/veramesh_edge.py","bin/veramesh_supervisor.py","bin/veramesh_runtime_init.py","bin/veramesh-gateway","bin/dsmctl","bin/run-veramesh-gateway.sh","bin/run-verarelay.sh","bin/adopt-standalone-verarelay.py","relay/package.json","provenance/component-bindings.json","third_party/dsmctl-LICENSE"}
  if not req.issubset(q):raise ValueError("payload contract")
  arm(q["bin/veramesh-gateway"],"gateway");arm(q["bin/dsmctl"],"dsmctl");v=json.loads(q["provenance/component-bindings.json"])
  if v["component_bindings"]["vera_mesh"]["commit"]!="60d233c8ccc25871b0666d00c53fa9be26c7cc74" or v["component_bindings"]["dsmctl"]["commit"]!="159c9301d1d0b89e3fc2c03215690ba71ff45634":raise ValueError("binding")
