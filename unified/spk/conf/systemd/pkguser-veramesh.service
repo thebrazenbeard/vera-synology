@@ -1,6 +1,5 @@
 [Unit]
 Description=Vera Runtime Host
-After=network.target
 
 [Service]
 Type=simple

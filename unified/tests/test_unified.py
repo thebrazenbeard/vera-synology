@@ -39,6 +39,12 @@ class T(unittest.TestCase):
   self.assertNotIn('postinstall "\\${SYNOPKG_PKG_STATUS:-}"',s)
   self.assertIn('veramesh_state.py" initialize',s)
   self.assertIn('veramesh_runtime_init.py',s)
+ def test_dsm_user_unit_has_no_system_unit_dependency(self):
+  unit=(U/"spk/conf/systemd/pkguser-veramesh.service").read_text()
+  self.assertNotIn("After=network.target",unit)
+  self.assertNotIn("After=network-online.target",unit)
+  info=(U/"spk/INFO").read_text()
+  self.assertIn('start_dep_services="network.target"',info)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()
