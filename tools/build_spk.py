@@ -14,7 +14,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATHS = ROOT / "SOURCE_PATHS.json"
 FIXED_MTIME = 0
-EXCLUDED_TRACKED = {\n    "SOURCE_MANIFEST.json",\n    "CLA.md",\n    "COMMERCIAL_LICENSE.md",\n    "CONTRIBUTING.md",\n    "LICENSE",\n    "NOTICE",\n}
+EXCLUDED_TRACKED = {
+    "SOURCE_MANIFEST.json",
+    "CLA.md",
+    "COMMERCIAL_LICENSE.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "NOTICE",
+}
 EXCLUDED_TOP = {".git", "dist"}
 
 
@@ -132,6 +139,8 @@ def validated_source_snapshot() -> dict[str, SourceEntry]:
         if path.name == "SOURCE_MANIFEST.json" or "__pycache__" in rel.parts or path.suffix == ".pyc":
             continue
         rel_text = rel.as_posix()
+        if rel_text in EXCLUDED_TRACKED:
+            continue
         if path.is_symlink():
             raise ValueError(f"source symlink is forbidden: {rel_text}")
         st = path.lstat()
