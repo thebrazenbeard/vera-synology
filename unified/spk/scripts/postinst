@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+P=/var/packages/python311/target/bin/python3.11; V=/var/packages/VeraMesh/var/vera; S=$V/scaffold-state.json; C=$V/edge-config.json
+"$P" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" initialize "$S"
+if [ ! -e "$C" ];then umask 077;printf '%s\n' '{"connect_timeout_s":5.0,"idle_timeout_s":300.0,"listen_host":"127.0.0.1","listen_port":17445,"max_connections":32,"schema":"VERA_MESH_EDGE_CONFIG_V1","target_host":"100.88.50.35","target_port":17444}' > "$C.new";chmod 600 "$C.new";mv "$C.new" "$C";fi
+"$P" "$SYNOPKG_PKGDEST/bin/veramesh_runtime_init.py"
+"$P" "$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py" postinstall "\${SYNOPKG_PKG_STATUS:-}"
