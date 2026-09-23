@@ -8,4 +8,5 @@ Version 0.2.0-0003 accepts Synology's package-managed VeraRelay var symlink afte
 
 Version 0.2.0-0004 fixes fresh-install lifecycle bootstrap by passing DSM's real SYNOPKG_PKG_STATUS to veramesh_lifecycle.py instead of a literal shell expression. This is required when VeraMesh has been removed and no prior lifecycle state exists.
 
-Version 0.2.0-0005 removes the unsupported system-unit ordering dependency from the DSM systemd user unit and expresses network ordering through DSM INFO start_dep_services instead.
+
+Version 0.2.0-0005 hardens reinstall recovery for DSM's persistent package var: INSTALL quarantines any prior modules.json without reading it and recreates safe edge-only activation state; UPGRADE remains fail-closed and preserves valid activation state.

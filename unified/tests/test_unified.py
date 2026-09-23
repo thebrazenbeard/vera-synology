@@ -39,12 +39,37 @@ class T(unittest.TestCase):
   self.assertNotIn('postinstall "\\${SYNOPKG_PKG_STATUS:-}"',s)
   self.assertIn('veramesh_state.py" initialize',s)
   self.assertIn('veramesh_runtime_init.py',s)
- def test_dsm_user_unit_has_no_system_unit_dependency(self):
+  self.assertIn('"$STATUS"',s)
+ def test_persistent_module_config_reinstall_recovery(self):
+  import importlib.util,os,tempfile
+  spec=importlib.util.spec_from_file_location("runtime_init",U/"payload/bin/veramesh_runtime_init.py")
+  m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  with tempfile.TemporaryDirectory() as td:
+   var=Path(td);runtime=var/"runtime";runtime.mkdir()
+   config=runtime/"modules.json"
+   config.write_text('{"schema":"poison"}\n');os.chmod(config,0)
+   old_inode=config.lstat().st_ino
+   recovery=m.initialize(var,"INSTALL")
+   self.assertEqual(m.RECOVERY_SCHEMA,recovery["schema"])
+   self.assertEqual(old_inode,recovery["source_inode"])
+   self.assertEqual(m.DEFAULT,json.loads(config.read_text()))
+   quarantined=Path(recovery["quarantine"])
+   self.assertTrue(quarantined.is_file())
+   self.assertEqual(0,quarantined.stat().st_mode & 0o777)
+ def test_upgrade_does_not_reset_invalid_module_config(self):
+  import importlib.util,tempfile
+  spec=importlib.util.spec_from_file_location("runtime_init_upgrade",U/"payload/bin/veramesh_runtime_init.py")
+  m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  with tempfile.TemporaryDirectory() as td:
+   var=Path(td);runtime=var/"runtime";runtime.mkdir()
+   config=runtime/"modules.json";config.write_text('{"schema":"poison"}\n')
+   with self.assertRaises(ValueError):m.initialize(var,"UPGRADE")
+   self.assertEqual('{"schema":"poison"}\n',config.read_text())
+ def test_synology_user_unit_matches_last_runtime-proven_shape(self):
   unit=(U/"spk/conf/systemd/pkguser-veramesh.service").read_text()
-  self.assertNotIn("After=network.target",unit)
-  self.assertNotIn("After=network-online.target",unit)
+  self.assertIn("After=network.target",unit)
   info=(U/"spk/INFO").read_text()
-  self.assertIn('start_dep_services="network.target"',info)
+  self.assertNotIn("start_dep_services=",info)
  def test_shell(self):
   [subprocess.run(["sh","-n",str(U/p)],check=True) for p in ("payload/bin/run-veramesh-gateway.sh","payload/bin/run-verarelay.sh","spk/scripts/postinst","spk/scripts/postupgrade")]
 if __name__=="__main__":unittest.main()

@@ -4,6 +4,7 @@ P=/var/packages/python311/target/bin/python3.11
 V=/var/packages/VeraMesh/var/vera
 S=$V/scaffold-state.json
 C=$V/edge-config.json
+STATUS="${SYNOPKG_PKG_STATUS:-INSTALL}"
 
 "$P" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" initialize "$S"
 
@@ -14,5 +15,5 @@ if [ ! -e "$C" ]; then
   mv "$C.new" "$C"
 fi
 
-"$P" "$SYNOPKG_PKGDEST/bin/veramesh_runtime_init.py"
-"$P" "$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py" postinstall "${SYNOPKG_PKG_STATUS:-}"
+"$P" "$SYNOPKG_PKGDEST/bin/veramesh_runtime_init.py" "$STATUS"
+"$P" "$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py" postinstall "$STATUS"

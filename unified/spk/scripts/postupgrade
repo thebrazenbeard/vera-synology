@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
-P=/var/packages/python311/target/bin/python3.11;S=/var/packages/VeraMesh/var/vera/scaffold-state.json
+P=/var/packages/python311/target/bin/python3.11
+S=/var/packages/VeraMesh/var/vera/scaffold-state.json
 "$P" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" verify "$S"
-"$P" "$SYNOPKG_PKGDEST/bin/veramesh_runtime_init.py"
+"$P" "$SYNOPKG_PKGDEST/bin/veramesh_runtime_init.py" UPGRADE
