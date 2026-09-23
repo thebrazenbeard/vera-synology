@@ -39,7 +39,7 @@ jobs:
      shell: bash
      run: |
       go test ./...
-      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0005 -X main.buildCommit=60d233c8ccc25871b0666d00c53fa9be26c7cc74" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0006 -X main.buildCommit=60d233c8ccc25871b0666d00c53fa9be26c7cc74" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
    - name: Build dsmctl ARMv7
      working-directory: dsmctl
      shell: bash
@@ -51,7 +51,7 @@ jobs:
      shell: bash
      run: |
       python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
-      python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0005-unified-runtime.spk
-      sha256sum dist/VeraMesh-0.2.0-0005-unified-runtime.spk
+      python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0006-unified-runtime.spk
+      sha256sum dist/VeraMesh-0.2.0-0006-unified-runtime.spk
    - uses: actions/upload-artifact@v4
-     with: {name: veramesh-unified-runtime, path: vera-synology/dist/VeraMesh-0.2.0-0005-unified-runtime.spk, compression-level: 0}
+     with: {name: veramesh-unified-runtime, path: vera-synology/dist/VeraMesh-0.2.0-0006-unified-runtime.spk, compression-level: 0}

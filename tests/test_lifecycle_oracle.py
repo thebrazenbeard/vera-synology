@@ -94,7 +94,7 @@ if MODULE.is_file():
             self.assertIsNone(value["process_start_generation"])
             self.assertEqual(3, lifecycle.status_code(self.state, self.absent))
 
-        def test_upgrade_or_unknown_postinst_never_bootstraps(self):
+        def test_upgrade_current_state_and_unknown_postinst_do_not_bootstrap(self):
             first = self.bootstrap()
             before = self.state.read_bytes()
             for pkg_status in ("UPGRADE", "", "START", "STOP"):
@@ -109,6 +109,42 @@ if MODULE.is_file():
                     self.assertIsNone(result)
                     self.assertEqual(before, self.state.read_bytes())
                     self.assertEqual(first, lifecycle.read_lifecycle_state(self.state))
+
+        def test_upgrade_recovers_valid_retired_authority_with_absent_socket(self):
+            first = self.bootstrap(self.INSTALL_A)
+            retired = lifecycle.retire_uninstall(self.state, self.lock)
+            result = lifecycle.postinstall_context(
+                "UPGRADE",
+                self.state,
+                self.lock,
+                probe=self.absent,
+                incarnation_factory=lambda: self.INSTALL_B,
+                transition_factory=lambda: "33333333333333333333333333333333",
+            )
+            self.assertIsNotNone(result)
+            self.assertEqual(self.INSTALL_B, result["installation_incarnation_id"])
+            self.assertEqual("CURRENT", result["installation_status"])
+            self.assertEqual("STOPPED", result["lifecycle_state"])
+            archive = self.state.with_name(
+                f"lifecycle-state.retired.{retired['installation_incarnation_id']}.g{retired['lifecycle_generation']}.json"
+            )
+            self.assertTrue(archive.is_file())
+            self.assertEqual(retired, lifecycle._validate_state(__import__("json").loads(archive.read_text())))
+
+        def test_upgrade_retired_recovery_requires_socket_absence(self):
+            self.bootstrap(self.INSTALL_A)
+            retired = lifecycle.retire_uninstall(self.state, self.lock)
+            before = self.state.read_bytes()
+            with self.assertRaises(ValueError):
+                lifecycle.postinstall_context(
+                    "UPGRADE",
+                    self.state,
+                    self.lock,
+                    probe=lambda: lifecycle.ProbeObservation.error(),
+                    incarnation_factory=lambda: self.INSTALL_B,
+                )
+            self.assertEqual(before, self.state.read_bytes())
+            self.assertEqual(retired, lifecycle.read_lifecycle_state(self.state))
 
         def test_fresh_install_supersedes_valid_prior_install_authority(self):
             first = self.bootstrap(self.INSTALL_A)

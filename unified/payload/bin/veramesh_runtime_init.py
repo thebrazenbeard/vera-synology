@@ -35,15 +35,18 @@ def write_json_new(path,value):
   os.close(fd)
  os.chmod(path,0o600)
 
-def quarantine_existing_config(config,runtime_dir):
+def quarantine_existing_config(config,runtime_dir,kind,reason):
  st=config.lstat()
  if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
   raise ValueError("existing runtime config is not a regular file")
- q=runtime_dir/f"modules.preinstall.uid{st.st_uid}.ino{st.st_ino}.json"
+ q=runtime_dir/f"modules.{kind}.uid{st.st_uid}.ino{st.st_ino}.json"
  if q.exists() or q.is_symlink():
   raise ValueError(f"runtime config quarantine collision: {q}")
  os.replace(config,q)
- return q,st
+ receipt=Path(str(q)+".receipt.json")
+ recovery={"schema":RECOVERY_SCHEMA,"reason":reason,"source":str(config),"quarantine":str(q),"receipt":str(receipt),"source_uid":st.st_uid,"source_gid":st.st_gid,"source_mode":f"{stat.S_IMODE(st.st_mode):04o}","source_inode":st.st_ino}
+ write_json_new(receipt,recovery)
+ return recovery,receipt
 
 def initialize(var,status):
  if status not in {"INSTALL","UPGRADE","PRESERVE"}:raise ValueError(f"unsupported package status: {status!r}")
@@ -60,15 +63,21 @@ def initialize(var,status):
 
  recovery=None
  if status=="INSTALL" and (config.exists() or config.is_symlink()):
-  q,st=quarantine_existing_config(config,runtime)
-  receipt=Path(str(q)+".receipt.json")
-  recovery={"schema":RECOVERY_SCHEMA,"reason":"INSTALL_RESETS_PERSISTED_MODULE_ACTIVATION","source":str(config),"quarantine":str(q),"receipt":str(receipt),"source_uid":st.st_uid,"source_gid":st.st_gid,"source_mode":f"{stat.S_IMODE(st.st_mode):04o}","source_inode":st.st_ino}
-  write_json_new(receipt,recovery)
+  recovery,receipt=quarantine_existing_config(config,runtime,"preinstall","INSTALL_RESETS_PERSISTED_MODULE_ACTIVATION")
   if owner is not None:os.chown(receipt,owner[0],owner[1])
 
  if config.exists():
-  valid(json.loads(config.read_text()))
- else:
+  try:
+   raw=config.read_text()
+  except PermissionError:
+   if status!="UPGRADE":
+    raise
+   recovery,receipt=quarantine_existing_config(config,runtime,"upgrade-unreadable","UPGRADE_RECOVERS_UNREADABLE_PERSISTED_MODULE_ACTIVATION")
+   if owner is not None:os.chown(receipt,owner[0],owner[1])
+  else:
+   valid(json.loads(raw))
+
+ if not config.exists():
   write_json_new(config,DEFAULT)
 
  os.chmod(config,0o600)

@@ -65,6 +65,23 @@ class T(unittest.TestCase):
    config=runtime/"modules.json";config.write_text('{"schema":"poison"}\n')
    with self.assertRaises(ValueError):m.initialize(var,"UPGRADE")
    self.assertEqual('{"schema":"poison"}\n',config.read_text())
+ def test_upgrade_recovers_permission_denied_module_config_only(self):
+  import importlib.util,tempfile
+  from unittest import mock
+  spec=importlib.util.spec_from_file_location("runtime_init_upgrade_denied",U/"payload/bin/veramesh_runtime_init.py")
+  m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+  with tempfile.TemporaryDirectory() as td:
+   var=Path(td);runtime=var/"runtime";runtime.mkdir()
+   config=runtime/"modules.json";config.write_text(json.dumps(m.DEFAULT)+"\n")
+   real_read=Path.read_text
+   def denied(self,*a,**k):
+    if self==config: raise PermissionError("simulated DSM ownership poison")
+    return real_read(self,*a,**k)
+   with mock.patch.object(Path,"read_text",denied):
+    recovery=m.initialize(var,"UPGRADE")
+   self.assertEqual("UPGRADE_RECOVERS_UNREADABLE_PERSISTED_MODULE_ACTIVATION",recovery["reason"])
+   self.assertEqual(m.DEFAULT,json.loads(config.read_text()))
+   self.assertTrue(Path(recovery["quarantine"]).is_file())
  def test_synology_user_unit_matches_last_runtime_proven_shape(self):
   unit=(U/"spk/conf/systemd/pkguser-veramesh.service").read_text()
   self.assertIn("After=network.target",unit)
