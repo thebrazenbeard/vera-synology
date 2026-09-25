@@ -1,15 +1,22 @@
 > **License:** Source-visible, not open source. Original material is proprietary. Commercial use, redistribution, hosted-service use, and commercial derivative products require written permission. See [LICENSE](LICENSE) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). Separately identified third-party components retain their own licenses.
 
-# Vera Synology
+# VeraMesh Synology DS216 Live Edge V16
 
-Vera Synology is the project space for packaging Vera-related services or support components for the DS216 DiskStation environment.
+V16 turns the prior DSM scaffold into a real, deliberately narrow VeraPort edge.
 
-## Current status
+The package runs as the DSM package user and binds a transparent TCP proxy only to loopback. Tailscale Serve is configured separately at deployment to provide tailnet-only ingress. The NAS does not terminate VeraPort TLS, does not hold VeraPort controller credentials, and does not authorize workstation operations.
 
-The current `main` branch is a scaffold. It contains repository governance/licensing and this README, but no Synology package implementation yet.
+Current semantic state: LIVE_EDGE_PROXY_READY_DURABLE_RELAY_NOT_IMPLEMENTED.
 
-Future work should keep package source, build output, NAS installation, running service state, and Vera runtime consumption as separate evidence layers.
+Implemented:
+- DSM-native lower-privilege Package Center lifecycle;
+- bounded DS216 readiness policy;
+- loopback-only live TCP edge proxy;
+- end-to-end VeraPort TLS/authentication preservation;
+- lifecycle-bound private Unix status socket.
 
-## Evidence boundary
-
-This repository does not by itself establish that any package is built, installed on a DiskStation, running, or connected to Vera.
+Not implemented:
+- durable store-and-forward relay;
+- NAS-side VeraPort credential termination;
+- public/LAN edge exposure;
+- autonomous pairing or authorization.

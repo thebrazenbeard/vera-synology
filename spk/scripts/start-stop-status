@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+PY="/var/packages/python311/target/bin/python3.11"
+STATE="/var/packages/VeraMesh/var/vera/scaffold-state.json"
+LIFECYCLE="$SYNOPKG_PKGDEST/bin/veramesh_lifecycle.py"
+START_READINESS="$SYNOPKG_PKGDEST/bin/veramesh_start_readiness.py"
+
+case "${1:-}" in
+  prestart)
+    "$PY" "$SYNOPKG_PKGDEST/bin/veramesh_state.py" verify "$STATE"
+    ;;
+  prestop)
+    ;;
+  start)
+    exec "$PY" "$START_READINESS" start
+    ;;
+  stop)
+    exec "$PY" "$LIFECYCLE" stop
+    ;;
+  status)
+    exec "$PY" "$LIFECYCLE" status
+    ;;
+  *)
+    exit 4
+    ;;
+esac
+exit 0
