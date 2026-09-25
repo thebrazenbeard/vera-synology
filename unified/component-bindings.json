@@ -1,0 +1,34 @@
+{
+  "schema": "VERAMESH_UNIFIED_RUNTIME_BINDINGS_V1",
+  "package": {
+    "id": "VeraMesh",
+    "version": "0.2.0-0008",
+    "arch": "armada38x"
+  },
+  "vera_synology_base": {
+    "repository": "thebrazenbeard/vera-synology",
+    "commit": "553e3a637833c5469f6b99fbc4d597755a0c9a5e"
+  },
+  "vera_mesh": {
+    "repository": "thebrazenbeard/vera-mesh",
+    "commit": "60d233c8ccc25871b0666d00c53fa9be26c7cc74"
+  },
+  "verarelay_snapshot": {
+    "repository": "thebrazenbeard/vera-mesh",
+    "commit": "60d233c8ccc25871b0666d00c53fa9be26c7cc74",
+    "path": "reference/verarelay_0_4_candidate/VERARELAY_LOCAL_SOURCE_20260919.tar.gz",
+    "sha256": "65ed065d4ce86e547b580690b07ac8524168da4aa7f748d50c4396d3dd5e7a7a"
+  },
+  "dsmctl": {
+    "repository": "laurenschristian/dsmctl",
+    "commit": "159c9301d1d0b89e3fc2c03215690ba71ff45634",
+    "license": "MIT"
+  },
+  "authority": {
+    "edge": "required",
+    "relay": "bundled-disabled-by-default",
+    "gateway": "bundled-disabled-by-default",
+    "dsmctl": "bundled-utility-no-credentials",
+    "workbridge": "external-lappy-loopback-via-veraport"
+  }
+}
