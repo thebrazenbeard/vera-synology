@@ -22,7 +22,7 @@ EXCLUDED_TRACKED = {
     "LICENSE",
     "NOTICE",
 }
-EXCLUDED_TOP = {".git", "dist"}
+EXCLUDED_TOP = {".git", "dist", "unified"}
 
 
 class SourceEntry:
@@ -119,7 +119,10 @@ def _read_worktree_regular(rel: str) -> bytes:
 
 
 def validated_source_snapshot() -> dict[str, SourceEntry]:
-    head = _git_head_entries()
+    head = {
+        path: entry for path, entry in _git_head_entries().items()
+        if not (Path(path).parts and Path(path).parts[0] in EXCLUDED_TOP)
+    }
     source_paths_entry = head.get("SOURCE_PATHS.json")
     if source_paths_entry is None or source_paths_entry[:2] != ("100644", "blob"):
         raise ValueError("SOURCE_PATHS.json missing or wrong Git type/mode")
