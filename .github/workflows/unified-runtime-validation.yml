@@ -1,0 +1,57 @@
+name: Unified Vera Runtime SPK
+on:
+  push:
+    branches: ["work/veramesh-unified-runtime-host-v1-20260923"]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+ build:
+  runs-on: ubuntu-24.04
+  timeout-minutes: 20
+  steps:
+   - uses: actions/checkout@v4
+     with: {path: vera-synology, persist-credentials: false}
+   - uses: actions/checkout@v4
+     with: {repository: thebrazenbeard/vera-mesh, ref: 60d233c8ccc25871b0666d00c53fa9be26c7cc74, path: vera-mesh, persist-credentials: false}
+   - uses: actions/checkout@v4
+     with: {repository: laurenschristian/dsmctl, ref: 159c9301d1d0b89e3fc2c03215690ba71ff45634, path: dsmctl, persist-credentials: false}
+   - uses: actions/setup-go@v6
+     with: {go-version: "1.27.1"}
+   - uses: actions/setup-node@v4
+     with: {node-version: "22"}
+   - name: Verify bindings and test Synology source
+     shell: bash
+     run: |
+      set -euo pipefail
+      A=vera-mesh/reference/verarelay_0_4_candidate/VERARELAY_LOCAL_SOURCE_20260919.tar.gz
+      echo "65ed065d4ce86e547b580690b07ac8524168da4aa7f748d50c4396d3dd5e7a7a  $A"|sha256sum -c -
+      cd vera-synology
+      python3 -m unittest discover -s tests -v
+      python3 -m unittest discover -s unified/tests -v
+      python3 tools/build_spk.py
+      python3 tools/verify_spk.py dist/VeraMesh-0.1.0-0017-live-edge.spk --manifest SOURCE_MANIFEST.json
+   - name: Qualify Relay
+     shell: bash
+     run: |
+      mkdir -p "$RUNNER_TEMP/relay";tar -xzf vera-mesh/reference/verarelay_0_4_candidate/VERARELAY_LOCAL_SOURCE_20260919.tar.gz -C "$RUNNER_TEMP/relay";cd "$RUNNER_TEMP/relay";npm test
+   - name: Build Gateway ARMv7
+     working-directory: vera-mesh/gateway/veramesh-go
+     shell: bash
+     run: |
+      go test ./...
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0008 -X main.buildCommit=60d233c8ccc25871b0666d00c53fa9be26c7cc74" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
+   - name: Build dsmctl ARMv7
+     working-directory: dsmctl
+     shell: bash
+     run: |
+      go test ./...
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o "$RUNNER_TEMP/dsmctl" .
+   - name: Build unified SPK
+     working-directory: vera-synology
+     shell: bash
+     run: |
+      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
+      python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0008-unified-runtime.spk
+      sha256sum dist/VeraMesh-0.2.0-0008-unified-runtime.spk
+   - uses: actions/upload-artifact@v4
+     with: {name: veramesh-unified-runtime, path: vera-synology/dist/VeraMesh-0.2.0-0008-unified-runtime.spk, compression-level: 0}
