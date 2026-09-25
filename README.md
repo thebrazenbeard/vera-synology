@@ -1,22 +1,32 @@
 > **License:** Source-visible, not open source. Original material is proprietary. Commercial use, redistribution, hosted-service use, and commercial derivative products require written permission. See [LICENSE](LICENSE) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). Separately identified third-party components retain their own licenses.
 
-# VeraMesh Synology DS216 Live Edge V16
+# Vera Synology runtime host
 
-V16 turns the prior DSM scaffold into a real, deliberately narrow VeraPort edge.
+This repository contains the Synology/DSM packaging and runtime-host source for VeraMesh on the DS216-class target. It now carries two related source surfaces on `main`:
 
-The package runs as the DSM package user and binds a transparent TCP proxy only to loopback. Tailscale Serve is configured separately at deployment to provide tailnet-only ingress. The NAS does not terminate VeraPort TLS, does not hold VeraPort controller credentials, and does not authorize workstation operations.
+- the hardened **VeraPort live edge** package, which runs as the DSM package user and exposes only a loopback TCP edge intended for tailnet-only ingress through separately configured Tailscale Serve;
+- the **unified VeraMesh runtime host** under `unified/`, which packages separate Edge, Relay, Gateway, and DSM-control roles in one DSM package. Relay and Gateway are bundled but disabled by default, and WorkBridge remains external on Lappy.
 
-Current semantic state: LIVE_EDGE_PROXY_READY_DURABLE_RELAY_NOT_IMPLEMENTED.
+## Safety and authority boundary
 
-Implemented:
+The NAS does not become Vera's workstation authority merely because this source is present. VeraPort TLS/authentication remains end-to-end, controller credentials are not terminated by the edge package, and public/LAN exposure or autonomous pairing is not implied.
+
+Repository source, green package tests, an installed SPK, an active DSM service, and a qualified live route are separate states. This repository establishes source/package behavior only unless runtime evidence says otherwise.
+
+## Implemented source surfaces
+
+The current tree includes:
+
 - DSM-native lower-privilege Package Center lifecycle;
 - bounded DS216 readiness policy;
-- loopback-only live TCP edge proxy;
-- end-to-end VeraPort TLS/authentication preservation;
-- lifecycle-bound private Unix status socket.
+- loopback-only VeraPort edge proxy;
+- lifecycle and state-recovery tests;
+- SPK build and verification tooling;
+- the unified runtime-host package and component bindings;
+- guarded standalone-VeraRelay adoption support with rollback and reload-generation checks.
 
-Not implemented:
-- durable store-and-forward relay;
-- NAS-side VeraPort credential termination;
-- public/LAN edge exposure;
-- autonomous pairing or authorization.
+See `unified/README.md` for the unified package revision history and `docs/TOOLKIT_QUALIFICATION.md` for source/toolkit qualification notes.
+
+## Currentness
+
+Treat `main` as the canonical repository source. Do not infer NAS installation, service activation, durable relay operation, credentials, or network exposure from repository state alone.
