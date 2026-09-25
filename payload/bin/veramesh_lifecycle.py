@@ -415,6 +415,61 @@ def bootstrap_install(
         return write_lifecycle_state_atomic(state_path, _new_install_state(incarnation_id, transition_id))
 
 
+def _archive_retired_state(state_path: Path, current: dict) -> Path:
+    raw = _canonical_bytes(current)
+    archive = state_path.with_name(
+        f"lifecycle-state.retired.{current['installation_incarnation_id']}.g{current['lifecycle_generation']}.json"
+    )
+    if archive.exists() or archive.is_symlink():
+        fd = os.open(archive, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            existing = os.read(fd, 8192)
+            if os.read(fd, 1):
+                raise ValueError("retired lifecycle archive too large")
+        finally:
+            os.close(fd)
+        if existing != raw:
+            raise ValueError("retired lifecycle archive collision")
+        return archive
+    fd = os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(fd, raw)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _fsync_directory(state_path.parent)
+    return archive
+
+
+def recover_retired_upgrade(
+    state_path: Path = STATE_PATH,
+    lock_path: Path = LOCK_PATH,
+    probe: Callable[[], object] | None = None,
+    incarnation_factory: Callable[[], str] | None = None,
+    transition_factory: Callable[[], str] | None = None,
+) -> dict | None:
+    probe = probe or probe_control_socket
+    incarnation_factory = incarnation_factory or (lambda: secrets.token_hex(16))
+    transition_factory = transition_factory or (lambda: secrets.token_hex(16))
+    with lifecycle_writer_lock(lock_path):
+        current = read_lifecycle_state(state_path)
+        if current["installation_status"] != "RETIRED":
+            return None
+        if _safe_probe(probe).result is not ProbeResult.ABSENT:
+            raise ValueError("retired upgrade recovery cannot prove semantic control socket absent")
+        incarnation_id = incarnation_factory()
+        transition_id = transition_factory()
+        if not _valid_id(incarnation_id):
+            raise ValueError("invalid installation incarnation factory output")
+        if not _valid_id(transition_id):
+            raise ValueError("invalid transition factory output")
+        _archive_retired_state(state_path, current)
+        return write_lifecycle_state_atomic(
+            state_path,
+            _new_install_state(incarnation_id, transition_id),
+        )
+
+
 def postinstall_context(
     pkg_status: str,
     state_path: Path = STATE_PATH,
@@ -423,9 +478,11 @@ def postinstall_context(
     incarnation_factory: Callable[[], str] | None = None,
     transition_factory: Callable[[], str] | None = None,
 ) -> dict | None:
-    if pkg_status != "INSTALL":
-        return None
-    return bootstrap_install(state_path, lock_path, probe, incarnation_factory, transition_factory)
+    if pkg_status == "INSTALL":
+        return bootstrap_install(state_path, lock_path, probe, incarnation_factory, transition_factory)
+    if pkg_status == "UPGRADE":
+        return recover_retired_upgrade(state_path, lock_path, probe, incarnation_factory, transition_factory)
+    return None
 
 
 def retire_uninstall(state_path: Path = STATE_PATH, lock_path: Path = LOCK_PATH) -> dict:
