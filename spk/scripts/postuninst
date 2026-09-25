@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+# Durable state was retired in preuninst while package payload still existed.
+# Mesh/trust/inbox durable data remains untouched.
+exit 0
