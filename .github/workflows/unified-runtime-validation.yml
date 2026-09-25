@@ -1,7 +1,18 @@
 name: Unified Vera Runtime SPK
 on:
   push:
-    branches: ["work/veramesh-unified-runtime-host-v1-20260923"]
+    branches:
+      - "work/veramesh-unified-runtime-host-v1-20260923"
+      - "integration/veramesh-unified-runtime-current-main-20260925"
+  pull_request:
+    paths:
+      - ".github/workflows/unified-runtime-validation.yml"
+      - "SOURCE_MANIFEST.json"
+      - "SOURCE_PATHS.json"
+      - "payload/bin/veramesh_lifecycle.py"
+      - "tests/test_lifecycle_oracle.py"
+      - "tools/build_spk.py"
+      - "unified/**"
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
