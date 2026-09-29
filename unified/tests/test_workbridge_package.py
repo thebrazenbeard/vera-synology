@@ -6,7 +6,7 @@ class WorkBridgePackageTests(unittest.TestCase):
  def test_bindings(self):
   b=json.loads((U/"component-bindings.json").read_text())
   self.assertEqual("0.2.0-0009",b["package"]["version"])
-  self.assertEqual("c063b9fbf96cfaf693e2dfd050a644de16be3a3b",b["vera_mesh"]["commit"])
+  self.assertEqual("2c9a7793df47e6cb61236683d9e432872d5b43ea",b["vera_mesh"]["commit"])
   self.assertEqual("8e0e9831adc2a6a8d41145c71c8bd64d9a489c77",b["workbridge_mcp"]["commit"])
  def test_configurator_compiles_and_read_write_profiles(self):
   p=U/"payload/bin/configure-workbridge.py";py_compile.compile(str(p),doraise=True)
