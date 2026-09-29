@@ -37,12 +37,13 @@ jobs:
      run: |
       go mod verify
       go test ./...
-      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -buildvcs=true -o "$RUNNER_TEMP/workbridge-mcp" ./cmd/workbridge-mcp
-      file "$RUNNER_TEMP/workbridge-mcp"
-      readelf -h "$RUNNER_TEMP/workbridge-mcp"
-      go version -m "$RUNNER_TEMP/workbridge-mcp"
-      echo "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1  $RUNNER_TEMP/workbridge-mcp" | sha256sum -c -
-      sha256sum "$RUNNER_TEMP/workbridge-mcp"
+      go build -trimpath -buildvcs=true -o "$RUNNER_TEMP/workbridge-mcp-native" ./cmd/workbridge-mcp
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -buildvcs=true -o "$RUNNER_TEMP/workbridge-mcp-armv7" ./cmd/workbridge-mcp
+      file "$RUNNER_TEMP/workbridge-mcp-armv7"
+      readelf -h "$RUNNER_TEMP/workbridge-mcp-armv7"
+      go version -m "$RUNNER_TEMP/workbridge-mcp-armv7"
+      echo "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1  $RUNNER_TEMP/workbridge-mcp-armv7" | sha256sum -c -
+      sha256sum "$RUNNER_TEMP/workbridge-mcp-armv7"
    - uses: actions/setup-go@v6
      with: {go-version: "1.27.1"}
    - name: Verify bindings and test Synology source
@@ -64,7 +65,7 @@ jobs:
      working-directory: vera-mesh/gateway/veramesh-go
      shell: bash
      run: |
-      WORKBRIDGE_BINARY="$RUNNER_TEMP/workbridge-mcp" go test ./...
+      WORKBRIDGE_BINARY="$RUNNER_TEMP/workbridge-mcp-native" go test ./...
       CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0009 -X main.buildCommit=2c9a7793df47e6cb61236683d9e432872d5b43ea" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
    - name: Build dsmctl ARMv7
      working-directory: dsmctl
@@ -76,7 +77,7 @@ jobs:
      working-directory: vera-synology
      shell: bash
      run: |
-      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --workbridge-bin "$RUNNER_TEMP/workbridge-mcp" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
+      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
       python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0009-unified-runtime.spk
       sha256sum dist/VeraMesh-0.2.0-0009-unified-runtime.spk
    - uses: actions/upload-artifact@v4
