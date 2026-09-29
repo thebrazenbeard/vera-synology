@@ -34,11 +34,10 @@ jobs:
    - name: Verify WorkBridge and build ARMv7
      working-directory: workbridge
      shell: bash
-     env: {CGO_ENABLED: "0", GOOS: linux, GOARCH: arm, GOARM: "7"}
      run: |
       go mod verify
       go test ./...
-      go build -trimpath -buildvcs=true -o "$RUNNER_TEMP/workbridge-mcp" ./cmd/workbridge-mcp
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -buildvcs=true -o "$RUNNER_TEMP/workbridge-mcp" ./cmd/workbridge-mcp
       file "$RUNNER_TEMP/workbridge-mcp"
       readelf -h "$RUNNER_TEMP/workbridge-mcp"
       go version -m "$RUNNER_TEMP/workbridge-mcp"
