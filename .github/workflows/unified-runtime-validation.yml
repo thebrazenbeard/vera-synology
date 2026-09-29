@@ -2,8 +2,7 @@ name: Unified Vera Runtime SPK
 on:
   push:
     branches:
-      - "work/veramesh-unified-runtime-host-v1-20260923"
-      - "integration/veramesh-unified-runtime-current-main-20260925"
+      - "work/nas-workbridge-gateway-v1-20260929"
   pull_request:
     paths:
       - ".github/workflows/unified-runtime-validation.yml"
@@ -18,18 +17,34 @@ permissions: {contents: read}
 jobs:
  build:
   runs-on: ubuntu-24.04
-  timeout-minutes: 20
+  timeout-minutes: 25
   steps:
    - uses: actions/checkout@v4
      with: {path: vera-synology, persist-credentials: false}
    - uses: actions/checkout@v4
-     with: {repository: thebrazenbeard/vera-mesh, ref: 60d233c8ccc25871b0666d00c53fa9be26c7cc74, path: vera-mesh, persist-credentials: false}
+     with: {repository: thebrazenbeard/vera-mesh, ref: c063b9fbf96cfaf693e2dfd050a644de16be3a3b, path: vera-mesh, persist-credentials: false}
+   - uses: actions/checkout@v4
+     with: {repository: thebrazenbeard/WorkBridgeMCP, ref: 8e0e9831adc2a6a8d41145c71c8bd64d9a489c77, path: workbridge, submodules: recursive, persist-credentials: false}
    - uses: actions/checkout@v4
      with: {repository: laurenschristian/dsmctl, ref: 159c9301d1d0b89e3fc2c03215690ba71ff45634, path: dsmctl, persist-credentials: false}
-   - uses: actions/setup-go@v6
-     with: {go-version: "1.27.1"}
    - uses: actions/setup-node@v4
      with: {node-version: "22"}
+   - uses: actions/setup-go@v6
+     with: {go-version: "1.25.12"}
+   - name: Verify WorkBridge and build ARMv7
+     working-directory: workbridge
+     shell: bash
+     env: {CGO_ENABLED: "0", GOOS: linux, GOARCH: arm, GOARM: "7"}
+     run: |
+      go mod verify
+      go test ./...
+      go build -trimpath -buildvcs=true -o "$RUNNER_TEMP/workbridge-mcp" ./cmd/workbridge-mcp
+      file "$RUNNER_TEMP/workbridge-mcp"
+      readelf -h "$RUNNER_TEMP/workbridge-mcp"
+      go version -m "$RUNNER_TEMP/workbridge-mcp"
+      sha256sum "$RUNNER_TEMP/workbridge-mcp"
+   - uses: actions/setup-go@v6
+     with: {go-version: "1.27.1"}
    - name: Verify bindings and test Synology source
      shell: bash
      run: |
@@ -45,12 +60,12 @@ jobs:
      shell: bash
      run: |
       mkdir -p "$RUNNER_TEMP/relay";tar -xzf vera-mesh/reference/verarelay_0_4_candidate/VERARELAY_LOCAL_SOURCE_20260919.tar.gz -C "$RUNNER_TEMP/relay";cd "$RUNNER_TEMP/relay";npm test
-   - name: Build Gateway ARMv7
+   - name: Build and test Gateway ARMv7 with real WorkBridge
      working-directory: vera-mesh/gateway/veramesh-go
      shell: bash
      run: |
-      go test ./...
-      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0008 -X main.buildCommit=60d233c8ccc25871b0666d00c53fa9be26c7cc74" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
+      WORKBRIDGE_BINARY="$RUNNER_TEMP/workbridge-mcp" go test ./...
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0009 -X main.buildCommit=c063b9fbf96cfaf693e2dfd050a644de16be3a3b" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
    - name: Build dsmctl ARMv7
      working-directory: dsmctl
      shell: bash
@@ -61,8 +76,8 @@ jobs:
      working-directory: vera-synology
      shell: bash
      run: |
-      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
-      python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0008-unified-runtime.spk
-      sha256sum dist/VeraMesh-0.2.0-0008-unified-runtime.spk
+      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --workbridge-bin "$RUNNER_TEMP/workbridge-mcp" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
+      python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0009-unified-runtime.spk
+      sha256sum dist/VeraMesh-0.2.0-0009-unified-runtime.spk
    - uses: actions/upload-artifact@v4
-     with: {name: veramesh-unified-runtime, path: vera-synology/dist/VeraMesh-0.2.0-0008-unified-runtime.spk, compression-level: 0}
+     with: {name: veramesh-unified-runtime-0009, path: vera-synology/dist/VeraMesh-0.2.0-0009-unified-runtime.spk, compression-level: 0}

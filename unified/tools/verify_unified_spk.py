@@ -15,13 +15,16 @@ def arm(b,n):
 def main():
  a=argparse.ArgumentParser();a.add_argument("spk");p=Path(a.parse_args().spk)
  with tarfile.open(p,"r:") as t:o,_=read(t)
- if 'version="0.2.0-0008"' not in o["INFO"].decode() or "veramesh_supervisor.py" not in o["conf/systemd/pkguser-veramesh.service"].decode():raise ValueError("outer contract")
+ if 'version="0.2.0-0009"' not in o["INFO"].decode() or "veramesh_supervisor.py" not in o["conf/systemd/pkguser-veramesh.service"].decode():raise ValueError("outer contract")
  with tarfile.open(fileobj=io.BytesIO(o["package.tgz"]),mode="r:gz") as t:q,m=read(t)
- req={"bin/veramesh_edge.py","bin/veramesh_supervisor.py","bin/veramesh_runtime_init.py","bin/veramesh-gateway","bin/dsmctl","bin/run-veramesh-gateway.sh","bin/run-verarelay.sh","bin/adopt-standalone-verarelay.py","relay/package.json","provenance/component-bindings.json","third_party/dsmctl-LICENSE"}
+ req={"bin/veramesh_edge.py","bin/veramesh_supervisor.py","bin/veramesh_runtime_init.py","bin/configure-workbridge.py","bin/veramesh-gateway","bin/workbridge-mcp","bin/dsmctl","bin/run-veramesh-gateway.sh","bin/run-verarelay.sh","bin/adopt-standalone-verarelay.py","relay/package.json","provenance/component-bindings.json","third_party/dsmctl-LICENSE"}
  if not req.issubset(q):raise ValueError("payload contract")
- arm(q["bin/veramesh-gateway"],"gateway");arm(q["bin/dsmctl"],"dsmctl");v=json.loads(q["provenance/component-bindings.json"])
- if v["component_bindings"]["vera_mesh"]["commit"]!="60d233c8ccc25871b0666d00c53fa9be26c7cc74" or v["component_bindings"]["dsmctl"]["commit"]!="159c9301d1d0b89e3fc2c03215690ba71ff45634":raise ValueError("binding")
- if v["artifacts"]["veramesh_gateway_sha256"]!=sh(q["bin/veramesh-gateway"]) or v["artifacts"]["dsmctl_sha256"]!=sh(q["bin/dsmctl"]):raise ValueError("binary hash")
+ arm(q["bin/veramesh-gateway"],"gateway");arm(q["bin/workbridge-mcp"],"workbridge");arm(q["bin/dsmctl"],"dsmctl")
+ v=json.loads(q["provenance/component-bindings.json"])
+ if v["component_bindings"]["vera_mesh"]["commit"]!="c063b9fbf96cfaf693e2dfd050a644de16be3a3b":raise ValueError("vera-mesh binding")
+ if v["component_bindings"]["workbridge_mcp"]["commit"]!="8e0e9831adc2a6a8d41145c71c8bd64d9a489c77":raise ValueError("workbridge binding")
+ if v["component_bindings"]["dsmctl"]["commit"]!="159c9301d1d0b89e3fc2c03215690ba71ff45634":raise ValueError("dsmctl binding")
+ if v["artifacts"]["veramesh_gateway_sha256"]!=sh(q["bin/veramesh-gateway"]) or v["artifacts"]["workbridge_mcp_sha256"]!=sh(q["bin/workbridge-mcp"]) or v["artifacts"]["dsmctl_sha256"]!=sh(q["bin/dsmctl"]):raise ValueError("binary hash")
  h=hashlib.sha256()
  for n in sorted(k for k in q if k.startswith("relay/")):h.update(n.removeprefix("relay/").encode()+b"\0"+f"{m[n]:04o}".encode()+b"\0"+hashlib.sha256(q[n]).digest())
  if h.hexdigest()!=v["artifacts"]["relay_tree_sha256"]:raise ValueError("relay hash")
