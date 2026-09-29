@@ -1,0 +1,29 @@
+From: BT2 DS216 portability qualification
+Subject: [PATCH] runtimeconfig: make compile-time guards word-size neutral
+
+Base: openai/tunnel-client@a390c168ff1b2d14e73a95991c186c6aba3ff5a0
+
+The six assertions below exist only to make negative constant relationships fail
+at compile time. Using uint accidentally also requires every positive duration
+constant to fit the target machine word. Preserve the nonnegative assertion
+while making it independent of 32-bit vs 64-bit target word size.
+
+--- a/pkg/runtimeconfig/config.go
++++ b/pkg/runtimeconfig/config.go
+@@ -77,12 +77,12 @@ const (
+ const DefaultControlPlaneBaseURL = defaultControlPlaneBaseURL
+ 
+-const _ = uint(maxControlPlaneMaxInFlight - defaultControlPlaneMaxInFlight)
+-const _ = uint(defaultControlPlanePollTimeout - 1)
+-const _ = uint(defaultControlPlaneInitialPollTimeout - 1)
+-const _ = uint(maxControlPlanePollDeadline - defaultControlPlanePollTimeout - defaultControlPlanePollDeadlineGuardrail)
+-const _ = uint(defaultControlPlanePollDeadlineGuardrail - 1)
+-const _ = uint(maxControlPlanePollDeadlineGuardrail - defaultControlPlanePollDeadlineGuardrail - 1)
++const _ = uint64(maxControlPlaneMaxInFlight - defaultControlPlaneMaxInFlight)
++const _ = uint64(defaultControlPlanePollTimeout - 1)
++const _ = uint64(defaultControlPlaneInitialPollTimeout - 1)
++const _ = uint64(maxControlPlanePollDeadline - defaultControlPlanePollTimeout - defaultControlPlanePollDeadlineGuardrail)
++const _ = uint64(defaultControlPlanePollDeadlineGuardrail - 1)
++const _ = uint64(maxControlPlanePollDeadlineGuardrail - defaultControlPlanePollDeadlineGuardrail - 1)
+ 
+ var harpoonLabelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)

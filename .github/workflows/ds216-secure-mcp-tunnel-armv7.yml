@@ -41,6 +41,21 @@ jobs:
           test "$(git describe --tags --exact-match HEAD)" = "v0.0.15"
           go mod verify
           go test ./...
+      - name: Apply reviewed 32-bit portability patch
+        working-directory: tunnel-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply ../vera-synology/patches/openai-tunnel-client-v0.0.15-armv7-word-size.patch
+          git diff --check
+          test "$(git diff --name-only)" = "pkg/runtimeconfig/config.go"
+          test "$(git diff --numstat | awk '{print $1":"$2":"$3}')" = "6:6:pkg/runtimeconfig/config.go"
+          grep -c '^const _ = uint64' pkg/runtimeconfig/config.go | grep -qx '6'
+          if grep -q '^const _ = uint(' pkg/runtimeconfig/config.go; then
+            echo "word-size-dependent compile assertion remains" >&2
+            exit 1
+          fi
+          go test ./...
       - name: Build runtime-only client for DS216 ARMv7
         working-directory: tunnel-client
         shell: bash

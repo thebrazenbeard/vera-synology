@@ -54,3 +54,22 @@ Read-only DSM/File Station inspection established that the Windows media mapping
 ## Claim ceiling
 
 A green ARMv7 workflow proves source/build compatibility for the exact tunnel-client subject only. It does not prove installation on DSM, tunnel credentials, ChatGPT connector binding, WorkBridge share permissions, media inventory, or any file rename effect.
+
+## Reviewed ARMv7 source patch
+
+The unmodified v0.0.15 source passes its native test suite but fails to compile
+for 32-bit ARM because six compile-time nonnegative assertions cast
+`time.Duration`-sized constants through machine-word `uint`.
+
+The derivative patch
+`patches/openai-tunnel-client-v0.0.15-armv7-word-size.patch` changes only
+those six assertion casts from `uint` to `uint64`.
+
+This preserves the original fail-at-compile-time behavior for negative
+relationships while removing an accidental 32-bit word-size ceiling. CI
+requires the patch to touch exactly one file with exactly six additions and six
+deletions, then reruns the complete upstream Go test suite before attempting
+the ARMv7 build.
+
+This is a local portability derivative. It is not a claim that OpenAI
+officially supports ARMv7.
