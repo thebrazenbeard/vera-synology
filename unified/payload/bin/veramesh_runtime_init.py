@@ -51,7 +51,7 @@ def quarantine_existing_config(config,runtime_dir,kind,reason):
 def initialize(var,status):
  if status not in {"INSTALL","UPGRADE","PRESERVE"}:raise ValueError(f"unsupported package status: {status!r}")
  runtime=var/"runtime";config=runtime/"modules.json"
- paths=(runtime,var/"gateway",var/"relay")
+ paths=(runtime,var/"gateway",var/"relay",var/"workbridge")
  for p in paths:
   p.mkdir(parents=True,exist_ok=True,mode=0o700)
   os.chmod(p,0o700)

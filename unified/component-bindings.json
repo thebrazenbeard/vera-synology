@@ -2,16 +2,22 @@
   "schema": "VERAMESH_UNIFIED_RUNTIME_BINDINGS_V1",
   "package": {
     "id": "VeraMesh",
-    "version": "0.2.0-0008",
+    "version": "0.2.0-0009",
     "arch": "armada38x"
   },
   "vera_synology_base": {
     "repository": "thebrazenbeard/vera-synology",
-    "commit": "553e3a637833c5469f6b99fbc4d597755a0c9a5e"
+    "commit": "d13cdefbf817aeba60c673fa4a517575c311da2c"
   },
   "vera_mesh": {
     "repository": "thebrazenbeard/vera-mesh",
-    "commit": "60d233c8ccc25871b0666d00c53fa9be26c7cc74"
+    "commit": "c063b9fbf96cfaf693e2dfd050a644de16be3a3b"
+  },
+  "workbridge_mcp": {
+    "repository": "thebrazenbeard/WorkBridgeMCP",
+    "commit": "8e0e9831adc2a6a8d41145c71c8bd64d9a489c77",
+    "go": "1.25.12",
+    "target": "linux/arm GOARM=7"
   },
   "verarelay_snapshot": {
     "repository": "thebrazenbeard/vera-mesh",
@@ -29,6 +35,6 @@
     "relay": "bundled-disabled-by-default",
     "gateway": "bundled-disabled-by-default",
     "dsmctl": "bundled-utility-no-credentials",
-    "workbridge": "external-lappy-loopback-via-veraport"
+    "workbridge": "bundled-loopback-disabled-until-operator-configures-roots"
   }
 }
