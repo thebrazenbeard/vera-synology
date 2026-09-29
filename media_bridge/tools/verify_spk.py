@@ -64,18 +64,35 @@ def main() -> int:
 
     required_outer = {
         "INFO",
+        "PACKAGE_ICON.PNG",
+        "PACKAGE_ICON_256.PNG",
         "conf/privilege",
         "conf/resource",
         "conf/systemd/pkguser-workbridgemedia.service",
         "WIZARD_UIFILES/install_uifile",
+        "scripts/preinst",
         "scripts/postinst",
+        "scripts/preuninst",
+        "scripts/postuninst",
+        "scripts/preupgrade",
+        "scripts/postupgrade",
+        "scripts/start-stop-status",
         "package.tgz",
     }
     missing_outer = sorted(required_outer - set(outer))
     if missing_outer:
         raise ValueError(f"missing outer SPK members: {missing_outer}")
-    if outer_modes["scripts/postinst"] & 0o111 == 0:
-        raise ValueError("postinst is not executable")
+    for script in (
+        "scripts/preinst",
+        "scripts/postinst",
+        "scripts/preuninst",
+        "scripts/postuninst",
+        "scripts/preupgrade",
+        "scripts/postupgrade",
+        "scripts/start-stop-status",
+    ):
+        if outer_modes[script] & 0o111 == 0:
+            raise ValueError(f"lifecycle script is not executable: {script}")
 
     info = outer["INFO"].decode("utf-8")
     for required in ('package="WorkBridgeMedia"', 'version="0.1.0-0001"', 'arch="armada38x"'):
