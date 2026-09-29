@@ -1,0 +1,25 @@
+name: WorkBridge Media SPK validation
+
+on:
+  push:
+    branches:
+      - "work/workbridge-media-spk-v1-20260929"
+  pull_request:
+    paths:
+      - ".github/workflows/workbridge-media-validation.yml"
+      - "media_bridge/**"
+      - "SOURCE_PATHS.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Standalone media package contract
+        run: python3 -m unittest media_bridge/tests/test_package_contract.py -v
