@@ -3,6 +3,7 @@
   ".github/workflows/unified-runtime-validation.yml",
   "README.md",
   "SOURCE_PATHS.json",
+  "docs/NAS_LIBRARY_BRIDGE_RESEARCH_20260929.md",
   "docs/TOOLKIT_QUALIFICATION.md",
   "payload/bin/veramesh_edge.py",
   "payload/bin/veramesh_lifecycle.py",
