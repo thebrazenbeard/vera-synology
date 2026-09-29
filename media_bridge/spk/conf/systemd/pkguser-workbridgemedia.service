@@ -1,0 +1,12 @@
+[Unit]
+Description=WorkBridgeMedia Secure MCP Tunnel
+
+[Service]
+Type=simple
+ExecStart=/var/packages/WorkBridgeMedia/target/bin/run-workbridge-media.sh
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=default.target
