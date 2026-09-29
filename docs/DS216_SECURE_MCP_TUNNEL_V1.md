@@ -61,15 +61,15 @@ The unmodified v0.0.15 source passes its native test suite but fails to compile
 for 32-bit ARM because six compile-time nonnegative assertions cast
 `time.Duration`-sized constants through machine-word `uint`.
 
-The derivative patch
-`patches/openai-tunnel-client-v0.0.15-armv7-word-size.patch` changes only
-those six assertion casts from `uint` to `uint64`.
+The derivative transformation
+`tools/patch_openai_tunnel_client_armv7.py` changes only those six assertion
+casts from `uint` to `uint64`, and refuses to run if the exact pinned source
+does not contain the expected six-line subject.
 
 This preserves the original fail-at-compile-time behavior for negative
-relationships while removing an accidental 32-bit word-size ceiling. CI
-requires the patch to touch exactly one file with exactly six additions and six
-deletions, then reruns the complete upstream Go test suite before attempting
-the ARMv7 build.
+relationships while removing an accidental 32-bit word-size ceiling. CI requires the transformation to touch exactly one file with exactly six
+additions and six deletions, then reruns the complete upstream Go test suite
+before attempting the ARMv7 build.
 
 This is a local portability derivative. It is not a claim that OpenAI
 officially supports ARMv7.

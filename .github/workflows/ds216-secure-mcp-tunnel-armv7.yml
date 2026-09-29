@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git apply ../vera-synology/patches/openai-tunnel-client-v0.0.15-armv7-word-size.patch
+          python ../vera-synology/tools/patch_openai_tunnel_client_armv7.py .
           git diff --check
           test "$(git diff --name-only)" = "pkg/runtimeconfig/config.go"
           test "$(git diff --numstat | awk '{print $1":"$2":"$3}')" = "6:6:pkg/runtimeconfig/config.go"

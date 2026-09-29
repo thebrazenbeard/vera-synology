@@ -7,7 +7,6 @@
   "docs/DS216_SECURE_MCP_TUNNEL_V1.md",
   "docs/NAS_LIBRARY_BRIDGE_RESEARCH_20260929.md",
   "docs/TOOLKIT_QUALIFICATION.md",
-  "patches/openai-tunnel-client-v0.0.15-armv7-word-size.patch",
   "payload/bin/veramesh_edge.py",
   "payload/bin/veramesh_lifecycle.py",
   "payload/bin/veramesh_start_readiness.py",
@@ -50,5 +49,6 @@
   "tests/test_verifier_successor_profile.py",
   "tools/build_spk.py",
   "tools/make_source_manifest.py",
+  "tools/patch_openai_tunnel_client_armv7.py",
   "tools/verify_spk.py"
 ]
