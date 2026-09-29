@@ -1,6 +1,6 @@
 # DS216 Secure MCP Tunnel V1
 
-Status: ARMV7 QUALIFICATION FRONTIER / NOT INSTALLED
+Status: ARMV7 DERIVATIVE QUALIFIED / STANDALONE SPK QUALIFIED / NOT INSTALLED
 
 Goal: connect ChatGPT directly to a bounded WorkBridge MCP server on the DS216 without QuickConnect automation, an inbound NAS port, or the Windows Z: mapping.
 
@@ -29,23 +29,38 @@ The workflow `ds216-secure-mcp-tunnel-armv7.yml`:
 
 1. checks out the exact v0.0.15 source commit;
 2. runs `go mod verify` and the native upstream test suite;
-3. cross-builds `./cmd/runtime` with `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`;
-4. requires a 32-bit ARM statically linked ELF;
-5. records Go build metadata and SHA-256;
-6. uploads the ARMv7 runtime binary only after those checks pass.
+3. applies the exact six-line word-size portability transformation and reruns upstream tests;
+4. cross-builds `./cmd/client-runtime` with `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`;
+5. requires a 32-bit ARM statically linked ELF;
+6. records Go build metadata and SHA-256;
+7. uploads the ARMv7 runtime binary only after those checks pass.
 
-## Package integration only after ARMv7 PASS
+## Standalone package qualification
 
-If qualification passes, the successor SPK should:
+ARMv7 qualification passed. The successor `WorkBridgeMedia` package is implemented on PR #11 and:
 
-- request DSM package-user access to the existing `Media` share;
-- expose only the known library root `/Media/Library` to WorkBridge;
-- configure WorkBridge in write-capable mode for governed rename operations;
-- keep WorkBridge loopback-only;
-- run the official tunnel client runtime as an outbound-only daemon;
-- keep tunnel ID and runtime API key in protected DSM package state, never source or the SPK;
-- verify WorkBridge readiness before declaring tunnel readiness;
-- create no inbound NAS firewall/public reverse-proxy requirement.
+- requests DSM package-user read/write access only to the existing `Media` share;
+- exposes only `/var/packages/WorkBridgeMedia/shares/Media/Library` to WorkBridge;
+- disables WorkBridge process execution;
+- runs WorkBridge as a stdio child of the outbound Secure MCP Tunnel runtime;
+- collects tunnel ID/runtime key through the DSM install wizard and stores them mode-0600;
+- preserves existing credentials on upgrade when wizard fields are empty;
+- uses complete DSM lifecycle scripts and package icons;
+- creates no inbound NAS firewall/public reverse-proxy requirement.
+
+Exact PR #11 head at qualification: `532baa103d360dd14caca7394bf0e416f3b29b23`.
+
+All three exact-head workflows passed:
+- WorkBridge Media SPK validation — PASS;
+- Scaffold validation — PASS;
+- Unified Vera Runtime SPK — PASS.
+
+Qualified SPK:
+- `WorkBridgeMedia-0.1.0-0001-armada38x.spk`
+- size: `13189120` bytes
+- SPK SHA-256: `72da8543c8d22fe86b19610d841b8e8c7e9337293dc6ea434ec2ec3b966230a0`
+- GitHub Actions artifact ID: `11055795215`
+- artifact ZIP digest: `sha256:14df3b89e4367acac97ae3731db4103ce7cc60db89764f50c9c1600ec9b7f58a`.
 
 ## Current media evidence
 
@@ -53,7 +68,9 @@ Read-only DSM/File Station inspection established that the Windows media mapping
 
 ## Claim ceiling
 
-A green ARMv7 workflow proves source/build compatibility for the exact tunnel-client subject only. It does not prove installation on DSM, tunnel credentials, ChatGPT connector binding, WorkBridge share permissions, media inventory, or any file rename effect.
+Source/build/package qualification is green. It does not prove `WorkBridgeMedia` is installed or running on the DS216, that tunnel credentials have been provisioned, that ChatGPT is connected to the NAS package, or that any media rename has occurred.
+
+The immediate Mediaphile job can continue through WorkBridge Commander direct UNC access without waiting for this package.
 
 ## Reviewed ARMv7 source patch
 
