@@ -38,6 +38,38 @@ def normalize_roots(values):
         raise ConfigError("at least one root is required")
     return out
 
+def verify_package_user_access(roots,writable):
+    if os.geteuid()!=0:
+        raise ConfigError("package-user permission preflight requires root")
+    read_fd,write_fd=os.pipe()
+    pid=os.fork()
+    if pid==0:
+        os.close(read_fd)
+        try:
+            uid,gid=package_owner()
+            os.initgroups("VeraMesh",gid)
+            os.setgid(gid);os.setuid(uid)
+            for raw in roots:
+                resolved=os.path.realpath(raw)
+                flags=os.O_RDONLY | getattr(os,"O_DIRECTORY",0)
+                fd=os.open(resolved,flags)
+                os.close(fd)
+                if not os.access(resolved,os.R_OK|os.X_OK):
+                    raise PermissionError(f"VeraMesh package user cannot read/traverse: {raw}")
+                if writable and not os.access(resolved,os.W_OK|os.X_OK):
+                    raise PermissionError(f"VeraMesh package user cannot write/traverse: {raw}")
+            os.write(write_fd,b"OK")
+            os._exit(0)
+        except BaseException as exc:
+            os.write(write_fd,("FAIL:"+str(exc)).encode("utf-8","replace")[:4096])
+            os._exit(1)
+    os.close(write_fd)
+    message=os.read(read_fd,4096).decode("utf-8","replace")
+    os.close(read_fd)
+    _,status=os.waitpid(pid,0)
+    if not os.WIFEXITED(status) or os.WEXITSTATUS(status)!=0 or message!="OK":
+        raise ConfigError(message.removeprefix("FAIL:") or "VeraMesh package-user root permission preflight failed")
+
 def sha256_file(path):
     h=hashlib.sha256()
     with open(path,"rb") as f:
@@ -111,6 +143,7 @@ def main(argv=None):
             print(json.dumps(plan,indent=2,sort_keys=True));return 0
         if os.geteuid()!=0:
             raise ConfigError("--apply must run as root so ownership can be set to the VeraMesh package user")
+        verify_package_user_access(roots,args.profile in {"write","operator"})
         owner=package_owner()
         for d in (WB,GW):
             d.mkdir(parents=True,exist_ok=True,mode=0o700);os.chmod(d,0o700);os.chown(d,*owner)
