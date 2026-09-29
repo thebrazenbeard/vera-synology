@@ -16,6 +16,7 @@ class WorkBridgePackageTests(unittest.TestCase):
    read,_=m.configs(roots,"read");write,_=m.configs(roots,"write")
    self.assertEqual([],read["write_roots"]);self.assertFalse(read["process"]["enabled"])
    self.assertEqual(roots,write["write_roots"]);self.assertFalse(write["process"]["enabled"])
+  source=p.read_text();self.assertIn("verify_package_user_access",source);self.assertIn("os.initgroups",source);self.assertIn("os.setuid",source)
  def test_gateway_launcher_contract(self):
   s=(U/"payload/bin/run-veramesh-gateway.sh").read_text()
   self.assertIn('("127.0.0.1",17447)',s);self.assertIn("-workbridge-config",s);self.assertIn("VERAMESH_WORKBRIDGE_TOKEN",s)
