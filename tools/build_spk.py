@@ -36,14 +36,12 @@ class SourceEntry:
         self.git_blob_sha = git_blob_sha
 
 
-def _mode_for_rel(rel: str) -> int:
-    if rel.startswith("spk/scripts/") or rel.startswith("payload/bin/") or rel.startswith("tools/"):
+def _archive_mode_for_git_mode(mode: str) -> int:
+    if mode == "100644":
+        return 0o644
+    if mode == "100755":
         return 0o755
-    return 0o644
-
-
-def _git_mode_for_rel(rel: str) -> str:
-    return "100755" if _mode_for_rel(rel) == 0o755 else "100644"
+    raise ValueError(f"unsupported Git regular-file mode: {mode}")
 
 
 def _git(args: list[str]) -> bytes:
@@ -160,9 +158,12 @@ def validated_source_snapshot() -> dict[str, SourceEntry]:
     snapshot: dict[str, SourceEntry] = {}
     for rel in expected:
         mode, obj_type, head_sha = head[rel]
-        expected_mode = _git_mode_for_rel(rel)
-        if obj_type != "blob" or mode != expected_mode:
+        if obj_type != "blob":
             raise ValueError(f"Git source type/mode mismatch: {rel}")
+        try:
+            archive_mode = _archive_mode_for_git_mode(mode)
+        except ValueError as exc:
+            raise ValueError(f"Git source type/mode mismatch: {rel}") from exc
         worktree_data = _read_worktree_regular(rel)
         if _git_blob_sha(worktree_data) != head_sha:
             raise ValueError(f"worktree bytes differ from exact Git HEAD: {rel}")
@@ -170,7 +171,7 @@ def validated_source_snapshot() -> dict[str, SourceEntry]:
         snapshot[rel] = SourceEntry(
             path=rel,
             data=git_data,
-            archive_mode=_mode_for_rel(rel),
+            archive_mode=archive_mode,
             git_mode=mode,
             git_blob_sha=head_sha,
         )
