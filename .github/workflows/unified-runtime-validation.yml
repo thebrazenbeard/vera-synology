@@ -20,7 +20,7 @@ jobs:
   timeout-minutes: 25
   steps:
    - uses: actions/checkout@v4
-     with: {path: vera-synology, persist-credentials: false}
+     with: {path: vera-synology, ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
    - uses: actions/checkout@v4
      with: {repository: thebrazenbeard/vera-mesh, ref: 2c9a7793df47e6cb61236683d9e432872d5b43ea, path: vera-mesh, persist-credentials: false}
    - uses: actions/checkout@v4
@@ -50,6 +50,7 @@ jobs:
      shell: bash
      run: |
       set -euo pipefail
+      test "$(git -C vera-synology rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
       A=vera-mesh/reference/verarelay_0_4_candidate/VERARELAY_LOCAL_SOURCE_20260919.tar.gz
       echo "65ed065d4ce86e547b580690b07ac8524168da4aa7f748d50c4396d3dd5e7a7a  $A"|sha256sum -c -
       cd vera-synology
@@ -77,7 +78,7 @@ jobs:
      working-directory: vera-synology
      shell: bash
      run: |
-      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$GITHUB_SHA"
+      python3 unified/tools/build_unified_spk.py --gateway-bin "$RUNNER_TEMP/veramesh-gateway" --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" --dsmctl-bin "$RUNNER_TEMP/dsmctl" --relay-dir "$RUNNER_TEMP/relay" --source-head "$(git rev-parse HEAD)"
       python3 unified/tools/verify_unified_spk.py dist/VeraMesh-0.2.0-0009-unified-runtime.spk
       sha256sum dist/VeraMesh-0.2.0-0009-unified-runtime.spk
    - uses: actions/upload-artifact@v4
