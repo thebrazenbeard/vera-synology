@@ -11,13 +11,14 @@
   },
   "vera_mesh": {
     "repository": "thebrazenbeard/vera-mesh",
-    "commit": "c063b9fbf96cfaf693e2dfd050a644de16be3a3b"
+    "commit": "2c9a7793df47e6cb61236683d9e432872d5b43ea"
   },
   "workbridge_mcp": {
     "repository": "thebrazenbeard/WorkBridgeMCP",
     "commit": "8e0e9831adc2a6a8d41145c71c8bd64d9a489c77",
     "go": "1.25.12",
-    "target": "linux/arm GOARM=7"
+    "target": "linux/arm GOARM=7",
+    "qualified_binary_sha256": "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1"
   },
   "verarelay_snapshot": {
     "repository": "thebrazenbeard/vera-mesh",

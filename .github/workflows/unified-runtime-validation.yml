@@ -22,7 +22,7 @@ jobs:
    - uses: actions/checkout@v4
      with: {path: vera-synology, persist-credentials: false}
    - uses: actions/checkout@v4
-     with: {repository: thebrazenbeard/vera-mesh, ref: c063b9fbf96cfaf693e2dfd050a644de16be3a3b, path: vera-mesh, persist-credentials: false}
+     with: {repository: thebrazenbeard/vera-mesh, ref: 2c9a7793df47e6cb61236683d9e432872d5b43ea, path: vera-mesh, persist-credentials: false}
    - uses: actions/checkout@v4
      with: {repository: thebrazenbeard/WorkBridgeMCP, ref: 8e0e9831adc2a6a8d41145c71c8bd64d9a489c77, path: workbridge, submodules: recursive, persist-credentials: false}
    - uses: actions/checkout@v4
@@ -42,6 +42,7 @@ jobs:
       file "$RUNNER_TEMP/workbridge-mcp"
       readelf -h "$RUNNER_TEMP/workbridge-mcp"
       go version -m "$RUNNER_TEMP/workbridge-mcp"
+      echo "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1  $RUNNER_TEMP/workbridge-mcp" | sha256sum -c -
       sha256sum "$RUNNER_TEMP/workbridge-mcp"
    - uses: actions/setup-go@v6
      with: {go-version: "1.27.1"}
@@ -65,7 +66,7 @@ jobs:
      shell: bash
      run: |
       WORKBRIDGE_BINARY="$RUNNER_TEMP/workbridge-mcp" go test ./...
-      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0009 -X main.buildCommit=c063b9fbf96cfaf693e2dfd050a644de16be3a3b" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
+      CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.buildVersion=0.2.0-0009 -X main.buildCommit=2c9a7793df47e6cb61236683d9e432872d5b43ea" -o "$RUNNER_TEMP/veramesh-gateway" ./cmd/veramesh-gateway
    - name: Build dsmctl ARMv7
      working-directory: dsmctl
      shell: bash
