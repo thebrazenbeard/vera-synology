@@ -86,6 +86,52 @@ class WorkBridgeMediaContractTests(unittest.TestCase):
         self.assertIn("ExecStart=/var/packages/WorkBridgeMedia/target/bin/run-workbridge-media.sh", service)
         self.assertIn("UMask=0077", service)
 
+    def test_package_provenance_and_builder_contract(self):
+        info_path = MEDIA / "spk" / "INFO"
+        self.assertTrue(info_path.is_file(), "SPK INFO is missing")
+        info = info_path.read_text(encoding="utf-8")
+        self.assertIn('package="WorkBridgeMedia"', info)
+        self.assertIn('version="0.1.0-0001"', info)
+        self.assertIn('arch="armada38x"', info)
+
+        privilege_path = MEDIA / "spk" / "conf" / "privilege"
+        self.assertTrue(privilege_path.is_file(), "package privilege contract is missing")
+        privilege = json.loads(privilege_path.read_text(encoding="utf-8"))
+        self.assertEqual("package", privilege.get("defaults", {}).get("run-as"))
+        self.assertEqual("WorkBridgeMedia", privilege.get("username"))
+        self.assertEqual("WorkBridgeMedia", privilege.get("groupname"))
+
+        bindings_path = MEDIA / "component-bindings.json"
+        self.assertTrue(bindings_path.is_file(), "component provenance bindings are missing")
+        bindings = json.loads(bindings_path.read_text(encoding="utf-8"))
+        self.assertEqual("WORKBRIDGE_MEDIA_BINDINGS_V1", bindings.get("schema"))
+        self.assertEqual(
+            "8e0e9831adc2a6a8d41145c71c8bd64d9a489c77",
+            bindings.get("workbridge_mcp", {}).get("commit"),
+        )
+        self.assertEqual(
+            "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1",
+            bindings.get("workbridge_mcp", {}).get("qualified_binary_sha256"),
+        )
+        self.assertEqual(
+            "a390c168ff1b2d14e73a95991c186c6aba3ff5a0",
+            bindings.get("openai_tunnel_client", {}).get("commit"),
+        )
+        self.assertEqual("v0.0.15", bindings.get("openai_tunnel_client", {}).get("tag"))
+        self.assertTrue(bindings.get("openai_tunnel_client", {}).get("armv7_derivative"))
+        self.assertEqual(
+            "3c27d0e9d7dc44488704a3c1687155b7fb5cf80b1fcd3c3d78fac1494229e671",
+            bindings.get("openai_tunnel_client", {}).get("qualified_binary_sha256"),
+        )
+
+        for path in [
+            MEDIA / "third_party" / "openai-tunnel-client-LICENSE",
+            MEDIA / "third_party" / "openai-tunnel-client-NOTICE",
+            MEDIA / "tools" / "build_spk.py",
+            MEDIA / "tools" / "verify_spk.py",
+        ]:
+            self.assertTrue(path.is_file(), f"required package source missing: {path.relative_to(ROOT)}")
+
 
 if __name__ == "__main__":
     unittest.main()
