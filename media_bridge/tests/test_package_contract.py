@@ -132,6 +132,31 @@ class WorkBridgeMediaContractTests(unittest.TestCase):
         ]:
             self.assertTrue(path.is_file(), f"required package source missing: {path.relative_to(ROOT)}")
 
+    def test_required_dsm_lifecycle_and_icons_exist(self):
+        scripts = [
+            "preinst",
+            "postinst",
+            "preuninst",
+            "postuninst",
+            "preupgrade",
+            "postupgrade",
+            "start-stop-status",
+        ]
+        for name in scripts:
+            path = MEDIA / "spk" / "scripts" / name
+            self.assertTrue(path.is_file(), f"required DSM lifecycle script missing: {name}")
+            self.assertTrue(path.stat().st_mode & 0o111, f"DSM lifecycle script is not executable: {name}")
+
+        for name in ["PACKAGE_ICON.PNG", "PACKAGE_ICON_256.PNG"]:
+            path = MEDIA / "spk" / name
+            self.assertTrue(path.is_file(), f"required DSM package icon missing: {name}")
+            self.assertGreater(path.stat().st_size, 0)
+
+        start_stop = (MEDIA / "spk" / "scripts" / "start-stop-status").read_text(encoding="utf-8")
+        self.assertIn("/usr/syno/bin/synosystemctl", start_stop)
+        self.assertIn("pkguser-workbridgemedia.service", start_stop)
+        self.assertIn("get-active-status", start_stop)
+
 
 if __name__ == "__main__":
     unittest.main()
