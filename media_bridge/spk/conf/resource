@@ -1,0 +1,15 @@
+{
+  "systemd-user-unit": {},
+  "data-share": {
+    "shares": [
+      {
+        "name": "Media",
+        "permission": {
+          "rw": [
+            "WorkBridgeMedia"
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -8,6 +8,8 @@
   "docs/DS216_SECURE_MCP_TUNNEL_V1.md",
   "docs/NAS_LIBRARY_BRIDGE_RESEARCH_20260929.md",
   "docs/TOOLKIT_QUALIFICATION.md",
+  "media_bridge/payload/etc/workbridge-media.json",
+  "media_bridge/spk/conf/resource",
   "media_bridge/tests/test_package_contract.py",
   "payload/bin/veramesh_edge.py",
   "payload/bin/veramesh_lifecycle.py",

@@ -1,0 +1,26 @@
+{
+  "schema": "WORKBRIDGE_CONFIG_V1",
+  "read_roots": [
+    "/var/packages/WorkBridgeMedia/shares/Media/Library"
+  ],
+  "write_roots": [
+    "/var/packages/WorkBridgeMedia/shares/Media/Library"
+  ],
+  "limits": {
+    "max_read_bytes": 8388608,
+    "max_write_bytes": 8388608,
+    "max_directory_entries": 10000
+  },
+  "process": {
+    "enabled": false,
+    "allowed_executables": [],
+    "working_roots": [],
+    "max_runtime_seconds": 60,
+    "max_output_bytes": 1048576,
+    "max_args": 64
+  },
+  "http": {
+    "listen": "127.0.0.1:8765",
+    "path": "/mcp"
+  }
+}
