@@ -1,0 +1,140 @@
+name: WorkBridge Media SPK validation
+
+on:
+  push:
+    branches:
+      - "work/workbridge-media-spk-v1-20260929"
+  pull_request:
+    paths:
+      - ".github/workflows/workbridge-media-validation.yml"
+      - "media_bridge/**"
+      - "tools/patch_openai_tunnel_client_armv7.py"
+      - "SOURCE_PATHS.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: vera-synology
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
+          persist-credentials: false
+
+      - name: Verify exact Synology source and package contracts
+        working-directory: vera-synology
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          python3 -m unittest media_bridge/tests/test_package_contract.py -v
+          python3 -m py_compile media_bridge/tools/build_spk.py media_bridge/tools/verify_spk.py tools/patch_openai_tunnel_client_armv7.py
+          sh -n media_bridge/spk/scripts/postinst
+          sh -n media_bridge/payload/bin/run-workbridge-media.sh
+
+      - uses: actions/checkout@v4
+        with:
+          repository: thebrazenbeard/WorkBridgeMCP
+          ref: 8e0e9831adc2a6a8d41145c71c8bd64d9a489c77
+          path: workbridge
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.12"
+          cache-dependency-path: workbridge/go.sum
+
+      - name: Qualify WorkBridge MCP and build ARMv7
+        working-directory: workbridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "8e0e9831adc2a6a8d41145c71c8bd64d9a489c77"
+          go mod verify
+          go test ./...
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -buildvcs=true \
+            -o "$RUNNER_TEMP/workbridge-mcp-armv7" ./cmd/workbridge-mcp
+          file "$RUNNER_TEMP/workbridge-mcp-armv7"
+          readelf -h "$RUNNER_TEMP/workbridge-mcp-armv7"
+          echo "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1  $RUNNER_TEMP/workbridge-mcp-armv7" | sha256sum -c -
+
+      - uses: actions/checkout@v4
+        with:
+          repository: openai/tunnel-client
+          ref: a390c168ff1b2d14e73a95991c186c6aba3ff5a0
+          path: tunnel-client
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.0"
+          cache-dependency-path: tunnel-client/go.sum
+
+      - name: Qualify and patch OpenAI tunnel-client source
+        working-directory: tunnel-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "a390c168ff1b2d14e73a95991c186c6aba3ff5a0"
+          test "$(git describe --tags --exact-match HEAD)" = "v0.0.15"
+          go mod verify
+          go test ./...
+          python3 ../vera-synology/tools/patch_openai_tunnel_client_armv7.py .
+          git diff --check
+          test "$(git diff --name-only)" = "pkg/runtimeconfig/config.go"
+          test "$(git diff --numstat | awk '{print $1":"$2":"$3}')" = "6:6:pkg/runtimeconfig/config.go"
+          go test ./...
+
+      - name: Build patched OpenAI tunnel runtime for ARMv7
+        working-directory: tunnel-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          module_path="$(go list -m -f '{{.Path}}')"
+          git_sha="a390c168ff1b2d14e73a95991c186c6aba3ff5a0"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build \
+            -trimpath \
+            -ldflags "-s -w -X ${module_path}/pkg/version.GitSHA=${git_sha}" \
+            -o "$RUNNER_TEMP/tunnel-client-runtime-armv7" \
+            ./cmd/client-runtime
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7" | tee "$RUNNER_TEMP/tunnel-file.txt"
+          grep -Eq 'ELF 32-bit LSB executable, ARM' "$RUNNER_TEMP/tunnel-file.txt"
+          grep -Eq 'statically linked' "$RUNNER_TEMP/tunnel-file.txt"
+          readelf -h "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'Machine:[[:space:]]+ARM'
+          echo "3c27d0e9d7dc44488704a3c1687155b7fb5cf80b1fcd3c3d78fac1494229e671  $RUNNER_TEMP/tunnel-client-runtime-armv7" | sha256sum -c -
+
+      - name: Build and verify deterministic WorkBridgeMedia SPK
+        working-directory: vera-synology
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          python3 media_bridge/tools/build_spk.py \
+            --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" \
+            --tunnel-bin "$RUNNER_TEMP/tunnel-client-runtime-armv7" \
+            --source-head "$HEAD_SHA"
+          SPK="dist/WorkBridgeMedia-0.1.0-0001-armada38x.spk"
+          python3 media_bridge/tools/verify_spk.py "$SPK"
+          sha256sum "$SPK" | tee "$RUNNER_TEMP/workbridge-media-spk.sha256"
+          cp "$SPK" "$RUNNER_TEMP/workbridge-media-first.spk"
+          python3 media_bridge/tools/build_spk.py \
+            --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" \
+            --tunnel-bin "$RUNNER_TEMP/tunnel-client-runtime-armv7" \
+            --source-head "$HEAD_SHA"
+          cmp "$RUNNER_TEMP/workbridge-media-first.spk" "$SPK"
+          python3 media_bridge/tools/verify_spk.py "$SPK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WorkBridgeMedia-0.1.0-0001-armada38x
+          path: |
+            vera-synology/dist/WorkBridgeMedia-0.1.0-0001-armada38x.spk
+            ${{ runner.temp }}/workbridge-media-spk.sha256
+          compression-level: 0

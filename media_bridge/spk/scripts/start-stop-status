@@ -1,0 +1,34 @@
+#!/bin/sh
+set -eu
+
+CTL=/usr/syno/bin/synosystemctl
+UNIT=pkguser-workbridgemedia.service
+ROOT=/var/packages/WorkBridgeMedia
+VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
+
+case "${1:-}" in
+  prestart)
+    [ -d "$ROOT/shares/Media/Library" ] || exit 1
+    [ -r "$VAR/tunnel-id" ] || exit 1
+    [ -r "$VAR/runtime-api-key" ] || exit 1
+    [ -r "$VAR/workbridge-media.json" ] || exit 1
+    ;;
+  start)
+    "$CTL" start "$UNIT"
+    ;;
+  stop)
+    "$CTL" stop "$UNIT"
+    ;;
+  status)
+    if [ "$("$CTL" get-active-status "$UNIT" 2>/dev/null || true)" = "active" ]; then
+      exit 0
+    fi
+    exit 3
+    ;;
+  prestop)
+    ;;
+  *)
+    exit 4
+    ;;
+esac
+exit 0

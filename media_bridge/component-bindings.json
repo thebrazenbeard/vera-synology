@@ -1,0 +1,34 @@
+{
+  "schema": "WORKBRIDGE_MEDIA_BINDINGS_V1",
+  "package": {
+    "id": "WorkBridgeMedia",
+    "version": "0.1.0-0001",
+    "arch": "armada38x"
+  },
+  "workbridge_mcp": {
+    "repository": "thebrazenbeard/WorkBridgeMCP",
+    "commit": "8e0e9831adc2a6a8d41145c71c8bd64d9a489c77",
+    "go": "1.25.12",
+    "target": "linux/arm GOARM=7",
+    "qualified_binary_sha256": "9be1dc0bd1413f4d63957dda10055db20bd551bdab91bdc2def11ab3bf180da1"
+  },
+  "openai_tunnel_client": {
+    "repository": "openai/tunnel-client",
+    "tag": "v0.0.15",
+    "commit": "a390c168ff1b2d14e73a95991c186c6aba3ff5a0",
+    "go": "1.27.0",
+    "target": "linux/arm GOARM=7",
+    "armv7_derivative": true,
+    "portability_transform": "tools/patch_openai_tunnel_client_armv7.py",
+    "qualified_binary_sha256": "3c27d0e9d7dc44488704a3c1687155b7fb5cf80b1fcd3c3d78fac1494229e671",
+    "license": "Apache-2.0"
+  },
+  "authority": {
+    "share": "Media",
+    "root": "/var/packages/WorkBridgeMedia/shares/Media/Library",
+    "filesystem": "read-write-within-root",
+    "process_execution": false,
+    "mcp_transport": "stdio",
+    "public_listener_created_by_package": false
+  }
+}

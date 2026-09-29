@@ -36,6 +36,12 @@ class SourceCustodyTests(unittest.TestCase):
         self.assertEqual(len(paths), len(set(paths)))
         self.assertIn("SOURCE_PATHS.json", paths)
 
+    def test_closed_snapshot_accepts_tracked_executable_outside_legacy_prefixes(self):
+        snapshot = build_spk.validated_source_snapshot()
+        entry = snapshot["media_bridge/payload/bin/run-workbridge-media.sh"]
+        self.assertEqual("100755", entry.git_mode)
+        self.assertEqual(0o755, entry.archive_mode)
+
     def test_untracked_regular_payload_file_is_rejected_before_build(self):
         path = ROOT / "payload" / "bin" / "UNTRACKED_SECRET.txt"
         path.write_bytes(b"harmless-untracked-sentinel")

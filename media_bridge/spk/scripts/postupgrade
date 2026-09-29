@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+ROOT=/var/packages/WorkBridgeMedia
+VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
+TARGET="${SYNOPKG_PKGDEST:-$ROOT/target}"
+CONFIG_FILE="$VAR/workbridge-media.json"
+mkdir -p "$VAR"
+chmod 700 "$VAR"
+umask 077
+cp "$TARGET/etc/workbridge-media.json" "$CONFIG_FILE.new"
+chmod 600 "$CONFIG_FILE.new"
+mv "$CONFIG_FILE.new" "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+exit 0

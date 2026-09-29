@@ -1,0 +1,50 @@
+#!/bin/sh
+set -eu
+
+ROOT=/var/packages/WorkBridgeMedia
+VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
+TARGET="${SYNOPKG_PKGDEST:-$ROOT/target}"
+TUNNEL_ID_FILE="$VAR/tunnel-id"
+API_KEY_FILE="$VAR/runtime-api-key"
+CONFIG_FILE="$VAR/workbridge-media.json"
+
+TUNNEL_ID="${SYNOPKG_WZF_wizard_tunnel_id:-${wizard_tunnel_id:-}}"
+API_KEY="${SYNOPKG_WZF_wizard_runtime_api_key:-${wizard_runtime_api_key:-}}"
+
+fail() {
+    printf '%s\n' "WorkBridgeMedia install: $*" >&2
+    exit 1
+}
+
+if [ -z "$TUNNEL_ID" ] && [ -r "$TUNNEL_ID_FILE" ]; then
+    TUNNEL_ID=$(cat "$TUNNEL_ID_FILE")
+fi
+if [ -z "$API_KEY" ] && [ -r "$API_KEY_FILE" ]; then
+    API_KEY=$(cat "$API_KEY_FILE")
+fi
+
+[ -n "$TUNNEL_ID" ] || fail "Secure MCP Tunnel ID is required"
+[ -n "$API_KEY" ] || fail "Secure MCP Tunnel runtime API key is required"
+printf '%s' "$TUNNEL_ID" | grep -Eq '^tunnel_[a-z0-9]{32}$' || fail "invalid Secure MCP Tunnel ID"
+printf '%s' "$API_KEY" | grep -Eq '^[A-Za-z0-9_-]+$' || fail "runtime API key contains unsupported characters"
+
+mkdir -p "$VAR"
+chmod 700 "$VAR"
+umask 077
+
+printf '%s\n' "$TUNNEL_ID" > "$TUNNEL_ID_FILE.new"
+chmod 600 "$TUNNEL_ID_FILE.new"
+mv "$TUNNEL_ID_FILE.new" "$TUNNEL_ID_FILE"
+chmod 600 "$TUNNEL_ID_FILE"
+
+printf '%s\n' "$API_KEY" > "$API_KEY_FILE.new"
+chmod 600 "$API_KEY_FILE.new"
+mv "$API_KEY_FILE.new" "$API_KEY_FILE"
+chmod 600 "$API_KEY_FILE"
+
+cp "$TARGET/etc/workbridge-media.json" "$CONFIG_FILE.new"
+chmod 600 "$CONFIG_FILE.new"
+mv "$CONFIG_FILE.new" "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+
+exit 0
