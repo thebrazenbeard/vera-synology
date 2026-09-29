@@ -1,0 +1,71 @@
+name: DS216 Secure MCP Tunnel ARMv7 qualification
+
+on:
+  push:
+    branches:
+      - "work/nas-secure-mcp-tunnel-v1-20260929"
+  pull_request:
+    paths:
+      - ".github/workflows/ds216-secure-mcp-tunnel-armv7.yml"
+      - "docs/DS216_SECURE_MCP_TUNNEL_V1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: vera-synology
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: openai/tunnel-client
+          ref: a390c168ff1b2d14e73a95991c186c6aba3ff5a0
+          path: tunnel-client
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.0"
+      - name: Verify exact upstream source
+        working-directory: tunnel-client
+        run: |
+          test "$(git rev-parse HEAD)" = "a390c168ff1b2d14e73a95991c186c6aba3ff5a0"
+          test "$(git describe --tags --exact-match HEAD)" = "v0.0.15"
+          go mod verify
+          go test ./...
+      - name: Build runtime-only client for DS216 ARMv7
+        working-directory: tunnel-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          module_path="$(go list -m -f '{{.Path}}')"
+          git_sha="$(git rev-parse HEAD)"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build \
+            -trimpath \
+            -ldflags "-s -w -X ${module_path}/pkg/version.GitSHA=${git_sha}" \
+            -o "$RUNNER_TEMP/tunnel-client-runtime-armv7" \
+            ./cmd/runtime
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7"
+          readelf -h "$RUNNER_TEMP/tunnel-client-runtime-armv7"
+          go version -m "$RUNNER_TEMP/tunnel-client-runtime-armv7"
+          sha256sum "$RUNNER_TEMP/tunnel-client-runtime-armv7" | tee "$RUNNER_TEMP/tunnel-client-runtime-armv7.sha256"
+      - name: Enforce ARMv7 static executable contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'ELF 32-bit LSB executable, ARM'
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'statically linked'
+          readelf -h "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'Machine:[[:space:]]+ARM'
+          test -s "$RUNNER_TEMP/tunnel-client-runtime-armv7.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openai-tunnel-client-runtime-v0.0.15-linux-armv7
+          path: |
+            ${{ runner.temp }}/tunnel-client-runtime-armv7
+            ${{ runner.temp }}/tunnel-client-runtime-armv7.sha256
+          compression-level: 0
