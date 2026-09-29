@@ -157,6 +157,21 @@ class WorkBridgeMediaContractTests(unittest.TestCase):
         self.assertIn("pkguser-workbridgemedia.service", start_stop)
         self.assertIn("get-active-status", start_stop)
 
+    def test_postinst_respects_resource_timing_and_upgrade_credentials(self):
+        postinst = (MEDIA / "spk" / "scripts" / "postinst").read_text(encoding="utf-8")
+        self.assertNotIn(
+            '[ -d "$ROOT/shares/Media/Library" ]',
+            postinst,
+            "data-share is not acquired until package enable/start",
+        )
+        self.assertIn('[ -r "$TUNNEL_ID_FILE" ]', postinst)
+        self.assertIn('TUNNEL_ID=$(cat "$TUNNEL_ID_FILE")', postinst)
+        self.assertIn('[ -r "$API_KEY_FILE" ]', postinst)
+        self.assertIn('API_KEY=$(cat "$API_KEY_FILE")', postinst)
+
+        start_stop = (MEDIA / "spk" / "scripts" / "start-stop-status").read_text(encoding="utf-8")
+        self.assertIn('[ -d "$ROOT/shares/Media/Library" ]', start_stop)
+
 
 if __name__ == "__main__":
     unittest.main()
