@@ -27,10 +27,13 @@ jobs:
           repository: openai/tunnel-client
           ref: a390c168ff1b2d14e73a95991c186c6aba3ff5a0
           path: tunnel-client
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
       - uses: actions/setup-go@v6
         with:
           go-version: "1.27.0"
+          cache-dependency-path: tunnel-client/go.sum
       - name: Verify exact upstream source
         working-directory: tunnel-client
         run: |
