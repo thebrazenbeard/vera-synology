@@ -1,0 +1,8 @@
+package="WorkBridgeMedia"
+version="0.1.0-0001"
+os_min_ver="7.2-72806"
+description="Bounded Media Library MCP bridge using WorkBridge and OpenAI Secure MCP Tunnel."
+arch="armada38x"
+maintainer="V.E.R.A. Build Team Two"
+thirdparty="yes"
+precheckstartstop="yes"
