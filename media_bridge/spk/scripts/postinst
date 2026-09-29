@@ -16,7 +16,13 @@ fail() {
     exit 1
 }
 
-[ -d "$ROOT/shares/Media/Library" ] || fail "DSM Media share Library directory is unavailable"
+if [ -z "$TUNNEL_ID" ] && [ -r "$TUNNEL_ID_FILE" ]; then
+    TUNNEL_ID=$(cat "$TUNNEL_ID_FILE")
+fi
+if [ -z "$API_KEY" ] && [ -r "$API_KEY_FILE" ]; then
+    API_KEY=$(cat "$API_KEY_FILE")
+fi
+
 [ -n "$TUNNEL_ID" ] || fail "Secure MCP Tunnel ID is required"
 [ -n "$API_KEY" ] || fail "Secure MCP Tunnel runtime API key is required"
 printf '%s' "$TUNNEL_ID" | grep -Eq '^tunnel_[a-z0-9]{32}$' || fail "invalid Secure MCP Tunnel ID"
