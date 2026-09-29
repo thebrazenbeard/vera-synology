@@ -18,7 +18,7 @@ class WorkBridgePackageTests(unittest.TestCase):
    self.assertEqual(roots,write["write_roots"]);self.assertFalse(write["process"]["enabled"])
  def test_gateway_launcher_contract(self):
   s=(U/"payload/bin/run-veramesh-gateway.sh").read_text()
-  self.assertIn("127.0.0.1:17447",s);self.assertIn("-workbridge-config",s);self.assertIn("VERAMESH_WORKBRIDGE_TOKEN",s)
+  self.assertIn('("127.0.0.1",17447)',s);self.assertIn("-workbridge-config",s);self.assertIn("VERAMESH_WORKBRIDGE_TOKEN",s)
   self.assertIn('exec "$B" -listen 127.0.0.1:17446',s)
   subprocess.run(["sh","-n",str(U/"payload/bin/run-veramesh-gateway.sh")],check=True)
  def test_runtime_init_preserves_existing_module_schema(self):
