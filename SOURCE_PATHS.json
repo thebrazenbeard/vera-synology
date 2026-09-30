@@ -4,6 +4,7 @@
   "README.md",
   "SOURCE_PATHS.json",
   "docs/TOOLKIT_QUALIFICATION.md",
+  "docs/VERARELAY_DSM_OWNERSHIP_TRIAGE_V1.md",
   "payload/bin/veramesh_edge.py",
   "payload/bin/veramesh_lifecycle.py",
   "payload/bin/veramesh_start_readiness.py",
@@ -43,8 +44,10 @@
   "tests/test_spk_successor_contract.py",
   "tests/test_start_readiness.py",
   "tests/test_state_recovery.py",
+  "tests/test_verarelay_owner_diag.py",
   "tests/test_verifier_successor_profile.py",
   "tools/build_spk.py",
+  "tools/diagnose_verarelay_owner.py",
   "tools/make_source_manifest.py",
   "tools/verify_spk.py"
 ]
