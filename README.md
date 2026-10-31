@@ -1,32 +1,70 @@
-> **License:** Source-visible, not open source. Original material is proprietary. Commercial use, redistribution, hosted-service use, and commercial derivative products require written permission. See [LICENSE](LICENSE) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md). Separately identified third-party components retain their own licenses.
+# Vera Synology — VeraMesh packages for Synology DSM
 
-# Vera Synology runtime host
+**A source-visible DSM package toolkit for a bounded VeraMesh network edge and an optional multi-component runtime host.**
 
-This repository contains the Synology/DSM packaging and runtime-host source for VeraMesh on the DS216-class target. It now carries two related source surfaces on `main`:
+Vera Synology contains package metadata, lower-privilege lifecycle scripts, Python edge/runtime code, deterministic SPK build and verification tools, and source-level regression tests. The package sources target **Synology DSM 7.2 or later (minimum build 72806)** on the declared **`armada38x`** architecture. They are reusable as a packaging reference and for private evaluation under the repository's license; they are **not** a generic DSM package for every architecture or evidence of installation on a particular NAS.
 
-- the hardened **VeraPort live edge** package, which runs as the DSM package user and exposes only a loopback TCP edge intended for tailnet-only ingress through separately configured Tailscale Serve;
-- the **unified VeraMesh runtime host** under `unified/`, which packages separate Edge, Relay, Gateway, and DSM-control roles in one DSM package. Relay and Gateway are bundled but disabled by default, and WorkBridge remains external on Lappy.
+There are two related products in this repository:
 
-## Safety and authority boundary
+| Source | Version / intended role | Status in `main` |
+| --- | --- | --- |
+| [Live edge package](spk/INFO) | `0.1.0-0017` — bounded, loopback-only VeraPort TCP forwarding | Package source, deterministic builder/verifier and lifecycle tests present |
+| [Unified runtime host](unified/spk/INFO) | `0.2.0-0008` — Edge, Relay, Gateway and DSM-control roles in one package | Component bindings, supervisor, package builder/verifier and guarded adoption source present; additional qualified external artifacts required to build |
 
-The NAS does not become Vera's workstation authority merely because this source is present. VeraPort TLS/authentication remains end-to-end, controller credentials are not terminated by the edge package, and public/LAN exposure or autonomous pairing is not implied.
+The unified design starts with Edge required and enabled; **Relay and Gateway are disabled by default**. The DSM-control utility is bundled as a utility, not treated as an independently authenticated management authority.
 
-Repository source, green package tests, an installed SPK, an active DSM service, and a qualified live route are separate states. This repository establishes source/package behavior only unless runtime evidence says otherwise.
+## What the source implements
 
-## Implemented source surfaces
+- A Synology Package Center lifecycle with a dedicated package user, fail-closed state checks, bounded startup readiness, and controlled recovery paths.
+- A VeraPort edge that validates a private configuration file, requires its listener host to be `127.0.0.1`, and forwards bounded TCP bytes without terminating the controller's end-to-end VeraPort authentication.
+- Deterministic legacy SPK construction from an exact Git source snapshot, source-manifest checking, and verification of the resulting package structure.
+- A unified supervisor with per-module enablement, status records, SIGHUP reload generation, and recovery and rollback handling for optional Relay adoption.
+- Tests for metadata, proxy behavior, framing, lifecycle, state recovery, source custody and package qualification contracts.
 
-The current tree includes:
+The [legacy edge implementation](payload/bin/veramesh_edge.py) is **not** a durable store-and-forward relay. The [unified module defaults](unified/payload/bin/veramesh_runtime_init.py) preserve Edge-only activation until a separately authorized operator changes configuration. An enabled component in a local configuration file is not proof of a healthy remote route.
 
-- DSM-native lower-privilege Package Center lifecycle;
-- bounded DS216 readiness policy;
-- loopback-only VeraPort edge proxy;
-- lifecycle and state-recovery tests;
-- SPK build and verification tooling;
-- the unified runtime-host package and component bindings;
-- guarded standalone-VeraRelay adoption support with rollback and reload-generation checks.
+## Build and inspect the edge SPK
 
-See `unified/README.md` for the unified package revision history and `docs/TOOLKIT_QUALIFICATION.md` for source/toolkit qualification notes.
+From a clean checkout with **Git and Python 3.11+**:
 
-## Currentness
+```sh
+python3 -B -m unittest discover -s tests -q
+python3 -B tools/build_spk.py
+python3 -B tools/verify_spk.py dist/VeraMesh-0.1.0-0017-live-edge.spk
+```
 
-Treat `main` as the canonical repository source. Do not infer NAS installation, service activation, durable relay operation, credentials, or network exposure from repository state alone.
+The builder writes `dist/VeraMesh-0.1.0-0017-live-edge.spk`. It rejects unexpected source paths, symlinks and changes that do not match exact Git `HEAD`; run it on a clean committed tree. The verifier checks package structure, provenance and metadata. **Passing either command qualifies a source/package artifact, not a DSM install, running service, reachable tunnel or authenticated controller connection.**
+
+Some socket-based regression tests need permission to bind temporary local Unix sockets. The test suite is intended for a normal isolated development environment; environment restrictions can prevent those tests from exercising their fixtures.
+
+## Unified package — externally qualified components
+
+The [unified source](unified/) supplies `build_unified_spk.py` and `verify_unified_spk.py`, but the build requires separately obtained, compatible **Gateway and DSM-control executable artifacts** and a **Relay source tree**. Their identities and the component revisions are constrained by [component bindings](unified/component-bindings.json), not selected by an arbitrary machine name.
+
+With those qualified artifacts available, the command shape is:
+
+```sh
+python3 unified/tools/build_unified_spk.py \
+  --gateway-bin /path/to/qualified-gateway \
+  --dsmctl-bin /path/to/qualified-dsmctl \
+  --relay-dir /path/to/qualified-relay-tree \
+  --source-head YOUR_VERIFIED_SOURCE_COMMIT
+python3 unified/tools/verify_unified_spk.py \
+  dist/VeraMesh-0.2.0-0008-unified-runtime.spk
+```
+
+Those paths are placeholders, not shipped binaries. The unified verifier checks expected package members, executable architecture and exact component/provenance bindings. See the [unified revision record](unified/README.md) for lifecycle and adoption changes. A locally built unified SPK does not imply that Relay, Gateway, or any workstation integration has been activated.
+
+## Deployment and authority boundaries
+
+**Installation is a separate, operator-controlled step.** The repository does not install packages, enroll devices, provision credentials, configure Tailscale, or modify a NAS when its tests or build commands run. Actual DSM version/CPU compatibility, package-user permissions, Package Center lifecycle, socket binding, and end-to-end authenticated traffic must be checked on the exact target before a deployment can be called qualified.
+
+The edge listener is loopback-only by design. Tailnet-only exposure would require a separately configured and verified ingress mechanism; no Funnel/public internet exposure is authorized or implied by this repository. Opaque byte forwarding preserves the protocol's location of authentication, but does **not** independently authenticate a provider, authorize an external effect, or grant host-owned immutable authority to an AI model.
+
+The [toolkit qualification boundary](docs/TOOLKIT_QUALIFICATION.md) records a historical device-class acceptance plan. Treat named hardware and workstation examples there as **test provenance**, not generic installation requirements or proof that this `main` commit is installed anywhere.
+
+## Licensing and contributions
+
+This is **source-visible proprietary software, not open source**. [LICENSE](LICENSE) permits limited private, noncommercial evaluation and reserves redistribution, commercial deployment and hosted-use rights; [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) describes separate permissions. Third-party material retains its own terms (see [NOTICE](NOTICE) and the [bundled DSM-control license notice](unified/third_party/dsmctl-LICENSE)).
+
+Contributors should read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md). Publication, modified distribution or use of contributed material requires respecting those terms; repository access alone does not grant permission to redistribute the SPKs.
