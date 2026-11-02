@@ -41,6 +41,7 @@
   "tests/test_lifecycle_oracle.py",
   "tests/test_metadata_profile_snapshot.py",
   "tests/test_private_dev_candidate.py",
+  "tests/test_private_eval_attestation.py",
   "tests/test_scaffold.py",
   "tests/test_scaffold_lifecycle_binding.py",
   "tests/test_source_archive_hardening.py",
@@ -61,5 +62,6 @@
   "trainingday_issuer/owner_custody_join.py",
   "trainingday_issuer/owner_source_pin.py",
   "trainingday_issuer/private_dev_candidate.py",
+  "trainingday_issuer/private_eval_attestation.py",
   "trainingday_issuer/vera-trainingday-witness.service.example"
 ]
