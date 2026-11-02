@@ -20,6 +20,7 @@ ALGORITHM = "RSA_PSS_SHA256_MGF1_SHA256_SALT32"
 PRIVATE_NAME = "issuer-rsapss-private.pem"
 PUBLIC_NAME = "issuer-rsapss-public.pem"
 MAX_MESSAGE = 16 * 1024
+PINNED_OPENSSL = "/usr/bin/openssl"
 HEX_SIGNATURE = re.compile(r"[0-9a-f]{768}\Z")
 RSA_SIGOPT = ["-sigopt", "rsa_padding_mode:pss",
               "-sigopt", "rsa_pss_saltlen:32",
@@ -68,10 +69,32 @@ def _read_owned(root, name):
 
 
 def _invoke(openssl, args, *, timeout=3):
+    # A success-only replacement executable (e.g. /bin/true) must never
+    # become a cryptographic verifier or signer. Only a protected host-owned
+    # OpenSSL binary can supply the claimed result.
+    if type(openssl) is not str or openssl != PINNED_OPENSSL:
+        raise IssuerKeyError("issuer system cryptography unavailable")
+    binary = Path(PINNED_OPENSSL)
+    for ancestor in binary.parents:
+        try:
+            meta = ancestor.lstat()
+        except OSError as exc:
+            raise IssuerKeyError("issuer system cryptography unavailable") from exc
+        if (not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0
+                or meta.st_mode & 0o022):
+            raise IssuerKeyError("issuer system cryptography untrusted")
+    try:
+        meta = binary.lstat()
+    except OSError as exc:
+        raise IssuerKeyError("issuer system cryptography unavailable") from exc
+    if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0
+            or meta.st_mode & 0o022 or not meta.st_mode & 0o111):
+        raise IssuerKeyError("issuer system cryptography untrusted")
     try:
         result = subprocess.run([openssl] + args, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, timeout=timeout,
-                                check=False)
+                                check=False,
+                                env={"LC_ALL": "C", "PATH": "/usr/bin:/bin"})
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise IssuerKeyError("issuer cryptographic operation unavailable") from exc
     if result.returncode != 0:
@@ -211,12 +234,12 @@ def verify_relative_to_pinned_public_key(public_pem_path, exact_receipt_bytes,
         with open(str(sig), "wb") as file:
             file.write(bytes.fromhex(signature_hex))
         try:
-            _invoke(openssl, ["dgst", "-sha256", "-verify",
-                              str(public_pem_path)] + RSA_SIGOPT
-                              + ["-signature", str(sig), str(content)])
+            result = _invoke(openssl, ["dgst", "-sha256", "-verify",
+                                      str(public_pem_path)] + RSA_SIGOPT
+                                      + ["-signature", str(sig), str(content)])
         except IssuerKeyError:
             return False
-        return True
+        return result.strip() == b"Verified OK"
 
 
 def _crypto_self_test(openssl, private, public, root):
