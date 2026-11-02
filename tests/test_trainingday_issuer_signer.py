@@ -1,4 +1,4 @@
-"""Synthetic Ed25519 issuer-key tests; never a corpus-rights/GPU grant."""
+"""Synthetic RSA-PSS issuer-key tests; never a corpus-rights/GPU grant."""
 
 import hashlib
 import hmac
@@ -7,9 +7,10 @@ from pathlib import Path
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from trainingday_issuer.issuer_signer import (
-    HostOwnedSigner, IssuerKeyError, PRIVATE_NAME, PUBLIC_NAME,
+    ALGORITHM, HostOwnedSigner, IssuerKeyError, PRIVATE_NAME, PUBLIC_NAME,
     provision_signer, verify_relative_to_pinned_public_key,
 )
 from trainingday_issuer.nas_witness import (REQUEST_DOMAIN, SCHEMA,
@@ -36,13 +37,14 @@ class HostOwnedSignerTests(unittest.TestCase):
     def test_host_private_key_signs_real_hold_receipt_only(self):
         data = canonical(self.receipt)
         signed = self.signer.sign_hold(data)
-        self.assertEqual(len(signed["issuer_ed25519_signature_hex"]), 128)
+        self.assertEqual(len(signed["issuer_rsapss_signature_hex"]), 768)
+        self.assertEqual(signed["issuer_signature_algorithm"], ALGORITHM)
         self.assertEqual(signed["issuer_public_pem_sha256"],
                          hashlib.sha256((self.root / PUBLIC_NAME).read_bytes()).hexdigest())
         self.assertTrue(verify_relative_to_pinned_public_key(
-            self.root / PUBLIC_NAME, data, signed["issuer_ed25519_signature_hex"]))
+            self.root / PUBLIC_NAME, data, signed["issuer_rsapss_signature_hex"]))
         self.assertFalse(verify_relative_to_pinned_public_key(
-            self.root / PUBLIC_NAME, data + b" ", signed["issuer_ed25519_signature_hex"]))
+            self.root / PUBLIC_NAME, data + b" ", signed["issuer_rsapss_signature_hex"]))
         self.assertNotIn("PRIVATE KEY", str(signed))
         self.assertEqual(self.receipt["status"], "HOLD")
         self.assertFalse(self.receipt["physical_training_authorized"])
@@ -62,8 +64,10 @@ class HostOwnedSignerTests(unittest.TestCase):
                                signer=self.signer)
         receipt = self._next(engine)
         self.assertEqual(receipt["seq"], 2)
-        signature = receipt.pop("issuer_ed25519_signature_hex")
+        signature = receipt.pop("issuer_rsapss_signature_hex")
+        algorithm = receipt.pop("issuer_signature_algorithm")
         fingerprint = receipt.pop("issuer_public_pem_sha256")
+        self.assertEqual(algorithm, ALGORITHM)
         self.assertEqual(fingerprint, self.signer.public_pem_sha256)
         self.assertTrue(verify_relative_to_pinned_public_key(
             self.root / PUBLIC_NAME, canonical(receipt), signature))
@@ -96,11 +100,11 @@ class HostOwnedSignerTests(unittest.TestCase):
         provision(other)
         provision_signer(other)
         payload = canonical(self.receipt)
-        sig = self.signer.sign_hold(payload)["issuer_ed25519_signature_hex"]
+        sig = self.signer.sign_hold(payload)["issuer_rsapss_signature_hex"]
         self.assertFalse(verify_relative_to_pinned_public_key(
             other / PUBLIC_NAME, payload, sig))
         self.assertFalse(verify_relative_to_pinned_public_key(
-            self.root / PUBLIC_NAME, payload, "0" * 128))
+            self.root / PUBLIC_NAME, payload, "0" * 768))
         self.assertFalse(verify_relative_to_pinned_public_key(
             self.root / PUBLIC_NAME, payload, "not-a-signature"))
 
@@ -118,6 +122,41 @@ class HostOwnedSignerTests(unittest.TestCase):
         provision(other)
         with self.assertRaises(IssuerKeyError):
             provision_signer(other, openssl="/missing/openssl")
+        self.assertFalse((other / PRIVATE_NAME).exists())
+        self.assertFalse((other / PUBLIC_NAME).exists())
+
+    def test_signer_uses_111_compatible_cli_not_ed25519_pkeyutl(self):
+        from trainingday_issuer import issuer_signer
+        real_run = issuer_signer.subprocess.run
+        calls = []
+
+        def observe(argv, **kwargs):
+            calls.append(argv)
+            self.assertNotIn("-rawin", argv)
+            self.assertNotIn("pkeyutl", argv)
+            return real_run(argv, **kwargs)
+
+        with patch.object(issuer_signer.subprocess, "run", side_effect=observe):
+            signed = self.signer.sign_hold(canonical(self.receipt))
+            self.assertTrue(verify_relative_to_pinned_public_key(
+                self.root / PUBLIC_NAME, canonical(self.receipt),
+                signed["issuer_rsapss_signature_hex"]))
+        self.assertEqual(sum("dgst" in argv for argv in calls), 2)
+
+    def test_provisioning_aborts_if_crypto_self_test_fails(self):
+        from trainingday_issuer import issuer_signer
+        other = Path(self.temp.name) / "self-test-failure"
+        provision(other)
+        original_invoke = issuer_signer._invoke
+
+        def reject_signing(openssl, argv, **kwargs):
+            if argv[0] == "dgst":
+                raise IssuerKeyError("crypto self-test unsupported")
+            return original_invoke(openssl, argv, **kwargs)
+
+        with patch.object(issuer_signer, "_invoke", side_effect=reject_signing):
+            with self.assertRaises(IssuerKeyError):
+                provision_signer(other)
         self.assertFalse((other / PRIVATE_NAME).exists())
         self.assertFalse((other / PUBLIC_NAME).exists())
 
