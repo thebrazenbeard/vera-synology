@@ -11,6 +11,30 @@ The service binds **only `127.0.0.1:18718`**. No TLS or WAN/LAN listener is
 created. Remote transport would require an independently authenticated,
 correct-hostname TLS tunnel and explicitly reviewed client identity. Do **not**
 reuse or modify existing Tailscale Serve port 17445 or Executor ingress 9443.
+
+## R185 source and owner-key enrollment extension (NOT INSTALLED)
+
+`trainingday_issuer.owner_source_pin` is a **separate future integration
+candidate** that checks a *root-owned*, non-symlink, canonical JSON enrollment
+file outside the writable service state. It binds
+the physically observed frozen R185 owner-review packet SHA, R18 manifest,
+ordered 1,024-case TRAIN-content digest, and V2 selected-ID digest to one
+administrator-enrolled owner public-key fingerprint and revocation generation.
+It verifies that each parent directory and the file are root-owned and cannot
+be replaced by the unprivileged `vera-witness` process. **The currently
+deployed NAS witness does not import this module or accept an owner pin.** A
+separate reviewed service-integration change is needed to bind the root pin to
+requests, detect revocation/rollback, and fail closed on live replacement.
+The pin module itself never accepts a public-key pin from a network request.
+
+**No owner key has been enrolled by this source patch.** The R185 packet is
+still unsigned and has a null protected-exclusion custody digest. An
+administrator must separately verify Patrick's identity and the original
+R185 bytes and enroll a genuine public key before installing a file. Do not
+copy a synthetic test key into the NAS. A pinned public key or TRAIN digest
+alone cannot prove actual owner consent, independent DEV/exclusion custody,
+source-use rights, external antirollback, or physical GPU ownership. Every
+service decision and every resulting authorization flag remains `HOLD/false`.
 The HTTP listener bounds concurrent client connections to 16 and applies a
 3-second socket deadline to limit slow-client resource exhaustion on ARMv7.
 
