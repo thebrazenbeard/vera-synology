@@ -260,8 +260,13 @@ class WitnessEngine:
                 db.execute("BEGIN IMMEDIATE")
                 seq, head, last_time = db.execute(
                     "SELECT seq,head,last_time FROM state WHERE id=1").fetchone()
-                if now < last_time:
+                # Host time can advance while the SQLite writer lock is busy.
+                # Recheck the deadline inside the acquired transaction.
+                commit_now = int(self._now())
+                if commit_now < now or commit_now < last_time:
                     raise StateError("trusted host clock regressed")
+                if not commit_now <= request["expires_unix"] <= commit_now + 120:
+                    raise StateError("request expired before durable append")
                 if head != request["previous_head"]:
                     raise LedgerConflict("stale witness prior head")
                 if db.execute("SELECT 1 FROM events WHERE nonce=?",
@@ -272,13 +277,13 @@ class WitnessEngine:
                         "previous_head": head,
                         "request_sha256": request["request_sha256"],
                         "event_kind": request["event_kind"],
-                        "created_unix": now}
+                        "created_unix": commit_now}
                 new_head = hashlib.sha256(LEDGER_DOMAIN + canonical(body)).hexdigest()
                 db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?)",
                            (next_seq, request["nonce"], head, new_head,
                             request["request_sha256"], request["event_kind"], now))
                 db.execute("UPDATE state SET seq=?,head=?,last_time=? WHERE id=1",
-                           (next_seq, new_head, now))
+                           (next_seq, new_head, commit_now))
                 db.execute("COMMIT")
         except (StateError, LedgerConflict):
             raise
@@ -364,7 +369,10 @@ def make_server(engine, port):
                         or self.headers.get("Content-Type") != "application/json"
                         or len(signatures) != 1):
                     raise StateError("invalid witness transport")
-                result = engine.append(self.rfile.read(int(lengths[0])), signatures[0])
+                request_bytes = self.rfile.read(int(lengths[0]))
+                if len(request_bytes) != int(lengths[0]):
+                    raise StateError("truncated witness request body")
+                result = engine.append(request_bytes, signatures[0])
                 return self._respond(200, result)
             except BrokerAuthError:
                 return self._respond(403, {"status": "HOLD"})

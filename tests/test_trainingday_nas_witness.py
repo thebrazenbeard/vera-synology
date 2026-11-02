@@ -81,6 +81,14 @@ class WitnessTests(unittest.TestCase):
                 self.engine.append(raw, mac)
         self.assertEqual(self.engine.health()["seq"], 0)
 
+    def test_expiry_rechecked_after_write_lock_acquired(self):
+        clock = iter((1762045200, 1762045261))
+        self.engine._now = lambda: next(clock)
+        raw, mac = self.request(expires_unix=1762045260)
+        with self.assertRaises(StateError):
+            self.engine.append(raw, mac)
+        self.assertEqual(self.engine.health()["seq"], 0)
+
     def test_concurrent_cas_exactly_one_wins(self):
         barrier = threading.Barrier(2)
         outcomes = []
@@ -177,6 +185,27 @@ class WitnessTests(unittest.TestCase):
         result = conn.getresponse()
         self.assertEqual(result.status, 200)
         self.assertFalse(json.loads(result.read())["gpu_lease_granted"])
+
+    def test_http_rejects_early_eof_even_with_valid_body_hmac(self):
+        server = make_server(self.engine, 0)
+        thread = threading.Thread(target=server.serve_forever,
+                                  kwargs={"poll_interval": 0.05})
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.addCleanup(lambda: thread.join(timeout=2))
+        raw, mac = self.request()
+        with socket.create_connection(("127.0.0.1", server.server_address[1]),
+                                      timeout=2) as client:
+            header = ("POST /v1/witness HTTP/1.0\r\nHost: localhost\r\n"
+                      "Content-Type: application/json\r\n"
+                      "Content-Length: {}\r\nX-Vera-Broker-HMAC: {}\r\n\r\n".format(
+                          len(raw) + 1, mac)).encode("ascii")
+            client.sendall(header + raw)
+            client.shutdown(socket.SHUT_WR)
+            response = client.recv(4096)
+        self.assertIn(b" 422 ", response)
+        self.assertEqual(self.engine.health()["seq"], 0)
 
 
 if __name__ == "__main__":
