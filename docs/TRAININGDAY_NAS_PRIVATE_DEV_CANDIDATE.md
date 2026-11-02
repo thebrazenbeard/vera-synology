@@ -95,3 +95,59 @@ Synthetic tests:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q tests.test_trainingday_owner_custody_join
 ```
+
+## Independent evaluator detached-signature seam (source-only)
+
+`trainingday_issuer.private_eval_attestation` introduces a **non-deployed,
+HOLD-only** verifier for a separate evaluator's aggregate commitment. It checks
+an RSA-PSS-3072/SHA256/MGF1-SHA256/salt32 detached signature over the exact
+canonical commitment bytes with the fixed domain prefix
+`VERA_R18_PRIVATE_EVALUATOR_ATTESTATION_CANDIDATE_V1\0`, then performs the
+existing owner-source/private-summary structural join. This uses the `openssl
+dgst` interface available on DSM's OpenSSL 1.1.1; signing with the issuer's
+own key is **not** allowed. The evaluator must own a *different* private key
+outside the witness service and trainer identities.
+The verifier refuses caller-selected cryptographic executables: only the
+root-owned `/usr/bin/openssl` under protected ancestry is accepted, and both
+exit status and the exact `Verified OK` result must agree. This is still
+trust in the host OS install, not independent binary supply-chain proof.
+
+The pure verifier accepts a caller-supplied public PEM and consequently proves
+only **signature validity relative to that supplied key**. Its result keeps
+`root_owned_artifact_integrity_checked: false`,
+`independent_key_enrollment_authenticated: false`, and every authority flag
+false. For any
+future service use, `load_host_enrolled_evaluator_attestation` additionally
+requires four administrator-selected absolute paths under fully root-owned,
+non-group/world-writable directory ancestry, each a root-owned unlinked
+regular file without group/world write access and only one hard link:
+
+1. exact R185 owner pin bytes;
+2. exact canonical aggregate private DEV/exclusions commitment bytes;
+3. 384-byte detached RSA-PSS signature;
+4. separately verified evaluator public PEM.
+
+The loader opens files without following final symlinks and accepts no file
+path from a request. Successful protected-file readback can attest to
+**root-owned file integrity** and signature authenticity *relative to
+the supplied public key*, but **still not** authenticated enrollment,
+independent evaluator identity, truthful
+R16/R18 protected material, owner consent, data-use rights, evaluator
+isolation, GPU lease, eval unsealing, or training authorization. Before use, a
+separate administrator must validate evaluator identity and independently
+review the source custody and key fingerprint, then install the four files
+without handing the signing private key or any protected cases to the NAS
+witness service. No provisioning, enrollment, HTTP route, or training effect
+is implemented here. Caller-coforged key plus commitment still verifies in
+the pure function and is explicitly classified **unauthenticated**.
+
+Synthetic OpenSSL regression check:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -q tests.test_private_eval_attestation
+```
+
+The positive root-enrollment filesystem test skips when executed under a
+world-writable workspace ancestor (as on some CI systems); the implementation
+itself must reject such ancestry. Physical NAS root enrollment and service
+identity isolation remain untested.
