@@ -1,0 +1,22 @@
+# SOURCE EXAMPLE, NOT AN INSTALLED SERVICE. Synology systemd 219 compatible.
+# Admin first creates a dedicated locked-down `vera-witness` user/group and
+# protected versioned source + state tree. Never use the NAS admin login.
+[Unit]
+Description=VERA TrainingDay NAS local HOLD witness
+After=local-fs.target
+
+[Service]
+Type=simple
+User=vera-witness
+Group=vera-witness
+WorkingDirectory=/volume1/@apphome/vera-trainingday-witness/current
+Environment=PYTHONPATH=/volume1/@apphome/vera-trainingday-witness/current
+UMask=0077
+ExecStart=/usr/bin/python3 -m trainingday_issuer.nas_witness serve --state-dir /volume1/@apphome/vera-trainingday-witness/private --port 18718
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
