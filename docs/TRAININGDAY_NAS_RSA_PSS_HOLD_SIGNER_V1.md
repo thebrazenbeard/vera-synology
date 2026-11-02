@@ -17,6 +17,15 @@ publishing the key pair and on every signed-service startup**. A failure
 prevents signing, cannot consume a pending CAS nonce, and does not fall back
 to unsigned or weaker signature formats.
 
+The signer and relative public-key verifier now reject caller-selected
+cryptographic executables, require a protected root-owned regular
+`/usr/bin/openssl` and root-owned, non-group-writable ancestry, and constrain
+the subprocess environment. Verification also requires OpenSSL's explicit
+`Verified OK` result, not merely exit status zero. This closes the synthetic
+`/bin/true` false-verification bypass. The physical NAS binary path/type must
+still be checked before installation; refusal on incompatible hosts is
+intentional.
+
 The currently deployed unsigned `serve` mode remains unchanged. No signing
 key is accepted from HTTP, returned to a client, or stored in Git. The signer
 accepts only canonical `VERA_TRAININGDAY_NAS_WITNESS_HOLD_V1` receipts with
