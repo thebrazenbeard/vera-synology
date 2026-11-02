@@ -4,6 +4,7 @@
   "README.md",
   "SOURCE_PATHS.json",
   "docs/TOOLKIT_QUALIFICATION.md",
+  "docs/TRAININGDAY_NAS_PRIVATE_DEV_CANDIDATE.md",
   "docs/TRAININGDAY_NAS_RSA_PSS_HOLD_SIGNER_V1.md",
   "docs/TRAININGDAY_NAS_WITNESS_CANDIDATE.md",
   "payload/bin/veramesh_edge.py",
@@ -39,6 +40,7 @@
   "tests/test_info_contract.py",
   "tests/test_lifecycle_oracle.py",
   "tests/test_metadata_profile_snapshot.py",
+  "tests/test_private_dev_candidate.py",
   "tests/test_scaffold.py",
   "tests/test_scaffold_lifecycle_binding.py",
   "tests/test_source_archive_hardening.py",
@@ -47,6 +49,8 @@
   "tests/test_state_recovery.py",
   "tests/test_trainingday_issuer_signer.py",
   "tests/test_trainingday_nas_witness.py",
+  "tests/test_trainingday_owner_custody_join.py",
+  "tests/test_trainingday_owner_source_pin.py",
   "tests/test_verifier_successor_profile.py",
   "tools/build_spk.py",
   "tools/make_source_manifest.py",
@@ -54,5 +58,8 @@
   "trainingday_issuer/__init__.py",
   "trainingday_issuer/issuer_signer.py",
   "trainingday_issuer/nas_witness.py",
+  "trainingday_issuer/owner_custody_join.py",
+  "trainingday_issuer/owner_source_pin.py",
+  "trainingday_issuer/private_dev_candidate.py",
   "trainingday_issuer/vera-trainingday-witness.service.example"
 ]
