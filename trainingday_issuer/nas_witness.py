@@ -281,7 +281,7 @@ class WitnessEngine:
                 new_head = hashlib.sha256(LEDGER_DOMAIN + canonical(body)).hexdigest()
                 db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?)",
                            (next_seq, request["nonce"], head, new_head,
-                            request["request_sha256"], request["event_kind"], now))
+                            request["request_sha256"], request["event_kind"], commit_now))
                 db.execute("UPDATE state SET seq=?,head=?,last_time=? WHERE id=1",
                            (next_seq, new_head, commit_now))
                 db.execute("COMMIT")

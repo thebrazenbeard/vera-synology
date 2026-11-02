@@ -89,6 +89,16 @@ class WitnessTests(unittest.TestCase):
             self.engine.append(raw, mac)
         self.assertEqual(self.engine.health()["seq"], 0)
 
+    def test_valid_later_commit_clock_persists_after_restart(self):
+        clock = iter((1762045200, 1762045201))
+        self.engine._now = lambda: next(clock)
+        raw, mac = self.request(expires_unix=1762045260)
+        result = self.engine.append(raw, mac)
+        self.assertEqual(result["created_unix"], 1762045201)
+        self.assertEqual(self.engine.health()["seq"], 1)
+        restored = WitnessEngine(self.root, now=lambda: 1762045202)
+        self.assertEqual(restored.health()["head"], result["head"])
+
     def test_concurrent_cas_exactly_one_wins(self):
         barrier = threading.Barrier(2)
         outcomes = []
