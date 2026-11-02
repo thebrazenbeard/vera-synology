@@ -4,7 +4,7 @@
   "README.md",
   "SOURCE_PATHS.json",
   "docs/TOOLKIT_QUALIFICATION.md",
-  "docs/TRAININGDAY_NAS_ED25519_HOLD_SIGNER_V1.md",
+  "docs/TRAININGDAY_NAS_RSA_PSS_HOLD_SIGNER_V1.md",
   "docs/TRAININGDAY_NAS_WITNESS_CANDIDATE.md",
   "payload/bin/veramesh_edge.py",
   "payload/bin/veramesh_lifecycle.py",
