@@ -20,6 +20,8 @@ import stat
 import threading
 import time
 
+from .issuer_signer import HostOwnedSigner, IssuerKeyError, provision_signer
+
 
 SCHEMA = "VERA_TRAININGDAY_NAS_WITNESS_REQUEST_V1"
 RESPONSE_SCHEMA = "VERA_TRAININGDAY_NAS_WITNESS_HOLD_V1"
@@ -147,12 +149,15 @@ def provision(state_root):
 class WitnessEngine:
     """Durable *local* append witness; no rights or GPU lease adjudicator."""
 
-    def __init__(self, state_root, now=None):
+    def __init__(self, state_root, now=None, signer=None):
         self.root = Path(state_root)
         _is_secure_owner_dir(self.root)
         self._broker_key = _secret(self.root / "broker.key")
         self._issuer_key = _secret(self.root / "issuer.key")
         self._now = now or time.time
+        if signer is not None and type(signer) is not HostOwnedSigner:
+            raise StateError("untrusted issuer signer")
+        self._signer = signer
         self.db_path = self.root / "witness.sqlite3"
         self._initialize_db()
         self._verify_chain()
@@ -284,20 +289,25 @@ class WitnessEngine:
                             request["request_sha256"], request["event_kind"], commit_now))
                 db.execute("UPDATE state SET seq=?,head=?,last_time=? WHERE id=1",
                            (next_seq, new_head, commit_now))
+                receipt = {"schema": RESPONSE_SCHEMA, **body, "head": new_head,
+                           "status": "HOLD", "reason": "RIGHTS_AND_GPU_OWNER_NOT_QUALIFIED",
+                           **HOLD_FLAGS}
+                receipt["local_receipt_mac"] = hmac.new(
+                    self._issuer_key, RECEIPT_DOMAIN + canonical(receipt),
+                    hashlib.sha256).hexdigest()
+                if self._signer is not None:
+                    # Sign the durable candidate BEFORE COMMIT; signing failure
+                    # rolls back the pending CAS instead of consuming the nonce.
+                    receipt.update(self._signer.sign_hold(canonical(receipt)))
                 db.execute("COMMIT")
         except (StateError, LedgerConflict):
             raise
+        except IssuerKeyError as exc:
+            raise StateError("host issuer signer unavailable; witness HOLD") from exc
         except sqlite3.IntegrityError as exc:
             raise LedgerConflict("duplicate or conflicting witness append") from exc
         except sqlite3.Error as exc:
             raise StateError("witness append unavailable") from exc
-        receipt = {"schema": RESPONSE_SCHEMA, **body, "head": new_head,
-                   "status": "HOLD", "reason": "RIGHTS_AND_GPU_OWNER_NOT_QUALIFIED",
-                   **HOLD_FLAGS}
-        # This is an internal server MAC, NOT independently verifiable signing.
-        receipt["local_receipt_mac"] = hmac.new(
-            self._issuer_key, RECEIPT_DOMAIN + canonical(receipt),
-            hashlib.sha256).hexdigest()
         return receipt
 
 
@@ -404,15 +414,19 @@ def serve(engine, port):
 
 def main():
     parser = argparse.ArgumentParser(description="Vera TrainingDay NAS HOLD witness")
-    parser.add_argument("action", choices=("provision", "serve", "health"))
+    parser.add_argument("action", choices=("provision", "provision-signer",
+                                          "serve", "serve-signed", "health"))
     parser.add_argument("--state-dir", type=Path, required=True)
     parser.add_argument("--port", type=int, default=18718)
     args = parser.parse_args()
     os.umask(0o077)
     if args.action == "provision":
         print(canonical(provision(args.state_dir)).decode("utf-8"))
+    elif args.action == "provision-signer":
+        print(canonical(provision_signer(args.state_dir)).decode("utf-8"))
     else:
-        engine = WitnessEngine(args.state_dir)
+        signer = HostOwnedSigner(args.state_dir) if args.action == "serve-signed" else None
+        engine = WitnessEngine(args.state_dir, signer=signer)
         if args.action == "health":
             print(canonical(engine.health()).decode("utf-8"))
         else:
