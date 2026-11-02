@@ -108,6 +108,14 @@ class HostOwnedSignerTests(unittest.TestCase):
         self.assertFalse(verify_relative_to_pinned_public_key(
             self.root / PUBLIC_NAME, payload, "not-a-signature"))
 
+    def test_caller_selected_success_program_cannot_spoof_receipt_verification(self):
+        # /bin/true exits zero without cryptographically verifying anything.
+        # A forged 384-byte signature must not become "verified" just because
+        # an untrusted caller supplied a successful executable path.
+        self.assertFalse(verify_relative_to_pinned_public_key(
+            self.root / PUBLIC_NAME, canonical(self.receipt), "0" * 768,
+            openssl="/bin/true"))
+
     def test_private_key_ownership_and_provisioning_are_fail_closed(self):
         with self.assertRaises(IssuerKeyError):
             provision_signer(self.root)
