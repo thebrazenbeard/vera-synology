@@ -1,4 +1,4 @@
-"""Host-owned Ed25519 receipt signing on DSM Python 3.8 + OpenSSL 1.1.1.
+"""Host-owned RSA-PSS receipt signing on DSM Python 3.8 + OpenSSL 1.1.1.
 
 This is an isolated, offline-provisioned signing primitive, not a rights issuer.
 An unsigned or caller-selected public key is not trusted enrollment. Callers
@@ -15,11 +15,15 @@ import subprocess
 import tempfile
 
 
-DOMAIN = b"VERA_TRAININGDAY_NAS_ISSUER_ED25519_HOLD_V1\x00"
-PRIVATE_NAME = "issuer-ed25519-private.pem"
-PUBLIC_NAME = "issuer-ed25519-public.pem"
+DOMAIN = b"VERA_TRAININGDAY_NAS_ISSUER_RSA_PSS_SHA256_HOLD_V1\x00"
+ALGORITHM = "RSA_PSS_SHA256_MGF1_SHA256_SALT32"
+PRIVATE_NAME = "issuer-rsapss-private.pem"
+PUBLIC_NAME = "issuer-rsapss-public.pem"
 MAX_MESSAGE = 16 * 1024
-HEX_SIGNATURE = re.compile(r"[0-9a-f]{128}\Z")
+HEX_SIGNATURE = re.compile(r"[0-9a-f]{768}\Z")
+RSA_SIGOPT = ["-sigopt", "rsa_padding_mode:pss",
+              "-sigopt", "rsa_pss_saltlen:32",
+              "-sigopt", "rsa_mgf1_md:sha256"]
 HOLD_RECEIPT_FIELDS = frozenset({
     "schema", "seq", "nonce", "previous_head", "request_sha256",
     "event_kind", "created_unix", "head", "status", "reason",
@@ -103,8 +107,12 @@ def provision_signer(root, *, openssl="/usr/bin/openssl"):
         raise IssuerKeyError("issuer signing identity already provisioned")
     priv_tmp, pub_tmp = _tmp(root), _tmp(root)
     try:
-        _invoke(openssl, ["genpkey", "-algorithm", "ED25519", "-out", str(priv_tmp)])
+        _invoke(openssl, ["genpkey", "-algorithm", "RSA", "-pkeyopt",
+                          "rsa_keygen_bits:3072", "-out", str(priv_tmp)], timeout=90)
         _invoke(openssl, ["pkey", "-in", str(priv_tmp), "-pubout", "-out", str(pub_tmp)])
+        # A key pair is not published unless this installed OpenSSL binary
+        # actually performs the complete signing/verification round trip.
+        _crypto_self_test(openssl, priv_tmp, pub_tmp, root)
         os.chmod(str(priv_tmp), 0o600)
         os.chmod(str(pub_tmp), 0o600)
         _sync(priv_tmp)
@@ -129,7 +137,7 @@ def provision_signer(root, *, openssl="/usr/bin/openssl"):
 
 
 class HostOwnedSigner:
-    """Ed25519 private key remains a protected NAS file; never returned."""
+    """RSA-PSS private key remains a protected NAS file; never returned."""
 
     def __init__(self, root, *, openssl="/usr/bin/openssl"):
         self.root = _secure_root(root)
@@ -142,6 +150,8 @@ class HostOwnedSigner:
                                     "-pubout"])
         if derived != self.public_pem:
             raise IssuerKeyError("issuer public/private key identity mismatch")
+        _crypto_self_test(openssl, self.root / PRIVATE_NAME,
+                          self.root / PUBLIC_NAME, self.root)
 
     def sign_hold(self, exact_receipt_bytes):
         if (type(exact_receipt_bytes) is not bytes or not exact_receipt_bytes
@@ -167,14 +177,15 @@ class HostOwnedSigner:
                 file.write(DOMAIN + exact_receipt_bytes)
                 file.flush()
                 os.fsync(file.fileno())
-            _invoke(self.openssl, ["pkeyutl", "-sign", "-rawin", "-inkey",
-                                   str(self.root / PRIVATE_NAME), "-in", str(data),
-                                   "-out", str(signature)])
+            _invoke(self.openssl, ["dgst", "-sha256", "-sign",
+                                   str(self.root / PRIVATE_NAME)] + RSA_SIGOPT
+                                   + ["-out", str(signature), str(data)])
             result = signature.read_bytes()
-            if len(result) != 64:
+            if len(result) != 384:
                 raise IssuerKeyError("issuer signature malformed")
             return {"issuer_public_pem_sha256": self.public_pem_sha256,
-                    "issuer_ed25519_signature_hex": result.hex()}
+                    "issuer_signature_algorithm": ALGORITHM,
+                    "issuer_rsapss_signature_hex": result.hex()}
         finally:
             for path in (data, signature):
                 path.unlink()
@@ -200,9 +211,35 @@ def verify_relative_to_pinned_public_key(public_pem_path, exact_receipt_bytes,
         with open(str(sig), "wb") as file:
             file.write(bytes.fromhex(signature_hex))
         try:
-            _invoke(openssl, ["pkeyutl", "-verify", "-rawin", "-pubin",
-                              "-inkey", str(public_pem_path), "-in", str(content),
-                              "-sigfile", str(sig)])
+            _invoke(openssl, ["dgst", "-sha256", "-verify",
+                              str(public_pem_path)] + RSA_SIGOPT
+                              + ["-signature", str(sig), str(content)])
         except IssuerKeyError:
             return False
         return True
+
+
+def _crypto_self_test(openssl, private, public, root):
+    """Verify real OpenSSL CLI capability, not only its reported version.
+
+    OpenSSL 1.1.1 can GENERATE Ed25519 keys but its CLI cannot sign them:
+    pkeyutl lacks -rawin and dgst explicitly excludes Ed25519. The fixed
+    RSA-PSS/SHA-256 primitive works through dgst on 1.1.1 and 3.x.
+    """
+    data, signature = _tmp(root), _tmp(root)
+    try:
+        with open(str(data), "wb") as file:
+            file.write(DOMAIN + b"startup-key-capability-test")
+            file.flush()
+            os.fsync(file.fileno())
+        _invoke(openssl, ["dgst", "-sha256", "-sign", str(private)]
+                         + RSA_SIGOPT + ["-out", str(signature), str(data)],
+                timeout=10)
+        if len(signature.read_bytes()) != 384:
+            raise IssuerKeyError("issuer cryptographic self-test signature malformed")
+        _invoke(openssl, ["dgst", "-sha256", "-verify", str(public)]
+                         + RSA_SIGOPT + ["-signature", str(signature), str(data)],
+                timeout=10)
+    finally:
+        for path in (data, signature):
+            path.unlink()
